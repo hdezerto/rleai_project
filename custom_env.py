@@ -520,8 +520,8 @@ class Joystick(go1_base.Go1Env):
         noisy_joint_vel,  # 12. 
         info["last_act"],  # 12 
         info["command"],  # 3
+        self._get_terrain_height(data)
     ])
-
     accelerometer = self.get_accelerometer(data)
     angvel = self.get_global_angvel(data)
 
@@ -715,6 +715,42 @@ class Joystick(go1_base.Go1Env):
     vel_xy = feet_vel[..., :2]
     vel_xy_norm_sq = jp.sum(jp.square(vel_xy), axis=-1)
     return jp.sum(vel_xy_norm_sq * contact) * (cmd_norm > 0.01)
+
+  def _get_terrain_height(self, data: mjx.Data) -> jax.Array:
+    """Get terrain height aorund feet with multiple rays for robustness."""
+    torso_pos = data.xpos[self._torso_body_id]
+
+    # Cast rays in a small pattern around torso center
+    offsets = jp.array([
+        [0.0, 0.0],      # Center
+        [0.2, 0.2],
+        [0.2, 0.0],      # Forward
+        [-0.2, 0.2],
+        [-0.2, 0.0],     # Back
+        [-0.2, 0.2],
+        [0.0, 0.2],      # Right
+        [0.0, -0.2],     # Left
+        [-0.2, -0.2]
+    ])
+    
+    # Create ray start positions
+    ray_starts = []
+    for offset in offsets:
+        start_pos = torso_pos + jp.array([offset[0], offset[1]+0.5, 0.5])
+        ray_starts.append(start_pos)
+    
+    ray_starts = jp.array(ray_starts)
+    ray_dir = jp.array([0.0, 0.0, -1.0])
+    
+    # Batch ray cast
+    distances, _ = ray.batch_ray(
+        self._mj_model, data, ray_starts, ray_dir, (),
+        True, bodyexclude=self._robot_body_ids
+    )
+
+    mean_distance = jp.mean(distances)
+    height_above_terrain = mean_distance - 0.5
+    return height_above_terrain
 
   def _get_torso_terrain_height(self, data: mjx.Data) -> jax.Array:
     """Get torso height above terrain using multiple rays for robustness."""

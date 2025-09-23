@@ -38,6 +38,7 @@ def main():
     jit_reset = jax.jit(env.reset)
     jit_step = jax.jit(env.step)
     jit_terrain_height = jax.jit(env._get_torso_terrain_height)
+    jit_actual_terrain_height = jax.jit(env._get_terrain_height)
 
     # Initialize
     key = jax.random.PRNGKey(15)
@@ -63,6 +64,7 @@ def main():
         # Collect frames and terrain heights for this reset
         rollout = []
         terrain_heights = []
+        actual_terrain_heights = []
 
         for step in range(steps_per_reset):
             rollout.append(state)
@@ -70,6 +72,10 @@ def main():
             # Calculate terrain height for this state
             terrain_height = jit_terrain_height(state.data)
             terrain_heights.append(float(terrain_height))
+
+            # Calculate actual terrain height (our values)
+            actual_terrain_height = jit_actual_terrain_height(state.data)
+            actual_terrain_heights.append(float(terrain_height))
 
             # Check for NaN/inf in reward
             if not jp.isfinite(state.reward):
@@ -112,7 +118,7 @@ def main():
 
             # Add terrain height overlay
             draw = ImageDraw.Draw(pil_image)
-            terrain_height_text = f"Terrain Height: {terrain_heights[i]:.3f}m"
+            terrain_height_text = f"Actual Terrain Height: {actual_terrain_heights[i]:.3f}m"
 
             # Try to use a default font, fallback to default if not available
             try:
