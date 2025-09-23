@@ -32,15 +32,16 @@ from mujoco_playground._src import collision
 
 def default_config() -> config_dict.ConfigDict:
   return config_dict.create(
-      ctrl_dt=0.02,
-      sim_dt=0.004,
-      episode_length=1000,
-      Kp=35.0,
-      Kd=0.5,
-      action_repeat=1,
-      action_scale=1.0,
-      history_len=1,
+      ctrl_dt=0.02, # Control timestep (for action updates)
+      sim_dt=0.004, # Simulation timestep
+      episode_length=1000, # Number of control steps per episode
+      Kp=35.0, # Proportional gain
+      Kd=0.5, # Derivative gain
+      action_repeat=1, # Number of simulation steps per control step
+      action_scale=1.0, 
+      history_len=1, # Length of history for observations (1 = no history)
       soft_joint_pos_limit_factor=0.95,
+      # Observation noise configuration
       noise_config=config_dict.create(
           level=1.0,  # Set to 0.0 to disable noise.
           scales=config_dict.create(
@@ -82,12 +83,14 @@ def default_config() -> config_dict.ConfigDict:
           desired_foot_air_time=0.15, 
           desired_torso_height=0.36,   
       ),
+      # For adding random pushes to the robot (for robustness)
       pert_config=config_dict.create(
           enable=False,
           velocity_kick=[0.0, 3.0],
           kick_durations=[0.05, 0.2],
           kick_wait_times=[1.0, 3.0],
       ),
+        # Command sampling configuration
       command_config=config_dict.create(
           # Uniform distribution for command amplitude.
           a=[1.5, 0.8, 1.2],
@@ -98,6 +101,7 @@ def default_config() -> config_dict.ConfigDict:
       nconmax=4 * 8192,
       njmax=40,
   )
+
 
 def parse_binary_data(binary_data):
     """
@@ -122,12 +126,14 @@ def parse_binary_data(binary_data):
     
     return parsed_strings
 
+
+
 class Joystick(go1_base.Go1Env):
   """Track a joystick command."""
 
   def __init__(
       self,
-      xml_path: str = None,
+      xml_path: str = None, 
       config: config_dict.ConfigDict = default_config(),
       config_overrides: Optional[Dict[str, Union[str, int, list[Any]]]] = None,
   ):
@@ -135,12 +141,14 @@ class Joystick(go1_base.Go1Env):
         raise ValueError("xml_path must be provided for Joystick environment.")
     config.nconmax = 100 * 8192
     config.njmax = 12 + 100 * 4
+    # Calls the parent class (Go1Env) constructor with the provided arguments to initialize the base environment.
     super().__init__(
         xml_path=xml_path,
         config=config,
         config_overrides=config_overrides,
     )
-    self._post_init()
+    self._post_init() # Custom post-init to set up additional attributes
+
 
   def _post_init(self) -> None:
     self._init_q = jp.array(self._mj_model.keyframe("home").qpos)
@@ -209,7 +217,8 @@ class Joystick(go1_base.Go1Env):
                 break
             current_body_id = parent_id
 
-  # ========================== Wall control methods ==========================
+
+  # ========================== CHECK: Wall control methods ==========================
   # This is just an example on how to change the wall_heights online.
   # For your project, you will likely want to track training progress in the environment
   # And set the wall positions based on that (increasing difficulty)
@@ -227,6 +236,7 @@ class Joystick(go1_base.Go1Env):
     )
     return wall_heights, rng
 
+
   def set_wall_mocap_positions(self, data, wall_heights):
     """Set wall positions using mocap control."""
     # Get original wall body positions
@@ -241,6 +251,7 @@ class Joystick(go1_base.Go1Env):
 
     return data.replace(mocap_pos=new_mocap_pos)
   # ==========================================================================
+
 
 
   def reset(self, rng: jax.Array) -> mjx_env.State:
@@ -810,7 +821,7 @@ class Joystick(go1_base.Go1Env):
             True, bodyexclude=self._robot_body_ids
         )  # Shape: (20,)
         # print(geom_ids.min())
-        # print(self._robot_body_ids)
+        print(self._robot_body_ids)
         # Reshape to (4 feet, 5 samples) and take max height around each foot
         distances_per_foot = distances.reshape(4, num_samples)
         

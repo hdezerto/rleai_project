@@ -2,6 +2,20 @@
 - I think the code already uses raycasting to measure torso height. Which other directions should we measure? Maybe forward and sideways, all angled slightly downward? A ring around the torso downward?
 
 
+- Check how to integrate the new measurements into the reward function.
+
+
+# NOTES
+- Set steps_per_reset to maximum 40 to reduce GPU memory usage and avoid RuntimeError: INTERNAL: cuSolver internal error.
+- Search for 'CHECK' to find places to modify/add code.
+
+
+# USEFUL COMMANDS:
+
+- `deactivate` to exit the virtual environment. 
+- `watch -n 1 nvidia-smi` to monitor GPU usage in real-time (run in a separate terminal).
+
+
 
 
 ---

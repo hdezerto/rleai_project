@@ -15,6 +15,7 @@ import cv2
 from PIL import Image, ImageDraw, ImageFont
 from custom_env import Joystick, default_config
 
+
 def main():
     # Set up visualization options
     scene_option = mujoco.MjvOption()
@@ -29,7 +30,7 @@ def main():
     # We will load the "debug" version here, which adds an additional wall *under* the robot
     # We add this to understand that changing walls correctly affects collision + raycasting.
     xml_path = 'custom_env_debug_wall.xml'
-    env = Joystick(xml_path=xml_path, config=default_config())
+
 
     # NOTE: For this test, we manually set init_q z position high to avoid collisions with walls
     env._init_q = env._init_q.at[2].set(1.0)
@@ -147,4 +148,5 @@ def main():
     
 
 if __name__ == "__main__":
+    print("JAX devices:", jax.devices())
     main()
