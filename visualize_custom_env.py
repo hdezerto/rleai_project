@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Visualization script for Go1 with height scanner."""
+
 import os
 # Tell XLA to use Triton GEMM
 xla_flags = os.environ.get('XLA_FLAGS', '')
