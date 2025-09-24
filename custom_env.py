@@ -581,7 +581,7 @@ class Joystick(go1_base.Go1Env):
       first_contact: jax.Array,
       contact: jax.Array,
   ) -> dict[str, jax.Array]:
-    del metrics  # Unused.
+    del metrics  # Unused, delete to prevent "unused variable" warning
     return {
         "tracking_lin_vel": self._reward_tracking_lin_vel(
             info["command"], self.get_local_linvel(data)
@@ -617,9 +617,9 @@ class Joystick(go1_base.Go1Env):
     
     # Squared error from target height
     return jp.square(height_above_terrain - target_height)
+  
+
   # Tracking rewards.
-
-
   def _reward_tracking_lin_vel(
       self,
       commands: jax.Array,
@@ -628,7 +628,6 @@ class Joystick(go1_base.Go1Env):
     # Tracking of linear velocity commands (xy axes).
     lin_vel_error = jp.sum(jp.square(commands[:2] - local_vel[:2]))
     return jp.exp(-lin_vel_error)
-
 
   def _reward_tracking_ang_vel(
       self,
@@ -645,11 +644,9 @@ class Joystick(go1_base.Go1Env):
     # Penalize z axis base linear velocity.
     return jp.square(global_linvel[2])
 
-
   def _cost_ang_vel_xy(self, global_angvel) -> jax.Array:
     # Penalize xy axes base angular velocity.
     return jp.sum(jp.square(global_angvel[:2]))
-
 
   def _cost_orientation(self, torso_zaxis: jax.Array,
                          tolerance: float = 0.15,   ## Consider increasing this a bit
@@ -680,8 +677,8 @@ class Joystick(go1_base.Go1Env):
       # Sum penalties for both pitch and roll
       return jp.sum(penalties)
 
-  # Energy related rewards.
 
+  # Energy related rewards.
   def _cost_torques(self, torques: jax.Array) -> jax.Array:
     # Penalize torques.
     return jp.sqrt(jp.sum(jp.square(torques))) + jp.sum(jp.abs(torques))
@@ -698,8 +695,8 @@ class Joystick(go1_base.Go1Env):
     del last_last_act  # Unused.
     return jp.sum(jp.square(act - last_act))
 
-  # Other rewards.
 
+  # Other rewards.
   def _reward_pose(self, qpos: jax.Array) -> jax.Array:
     # Stay close to the default pose.
     weight = jp.array([1.0, 1.0, 0.1] * 4)
@@ -719,9 +716,10 @@ class Joystick(go1_base.Go1Env):
 
   def _cost_joint_pos_limits(self, qpos: jax.Array) -> jax.Array:
     # Penalize joints if they cross soft limits.
-    out_of_limits = -jp.clip(qpos - self._soft_lowers, None, 0.0)
-    out_of_limits += jp.clip(qpos - self._soft_uppers, 0.0, None)
+    out_of_limits = -jp.clip(qpos - self._soft_lowers, None, 0.0) # Clips negative values to 0. Negative makes the cost positive when a joint is too low
+    out_of_limits += jp.clip(qpos - self._soft_uppers, 0.0, None) # Clips positive values to 0
     return jp.sum(out_of_limits)
+
 
   # Feet related rewards.
   def _reward_feet_air_time(
@@ -730,7 +728,7 @@ class Joystick(go1_base.Go1Env):
     # Reward air time.
     cmd_norm = jp.linalg.norm(commands)
     rew_air_time = jp.sum(jp.exp(-jp.square(air_time - self._config.reward_config.desired_foot_air_time)) * first_contact)
-    rew_air_time *= cmd_norm > 0.01  # No reward for zero commands.
+    rew_air_time *= cmd_norm > 0.01  # No reward for close to zero commands.
     return rew_air_time
   
   def _cost_feet_slip(
@@ -742,9 +740,10 @@ class Joystick(go1_base.Go1Env):
     vel_xy_norm_sq = jp.sum(jp.square(vel_xy), axis=-1)
     return jp.sum(vel_xy_norm_sq * contact) * (cmd_norm > 0.01)
 
+
   def _get_torso_terrain_height(self, data: mjx.Data) -> jax.Array:
     """Get torso height above terrain using multiple rays for robustness."""
-    torso_pos = data.xpos[self._torso_body_id]
+    torso_pos = data.xpos[self._torso_body_id] # 3D position of torso in world coordinates
     
     # Cast rays in a small pattern around torso center
     offsets = jp.array([
@@ -762,13 +761,13 @@ class Joystick(go1_base.Go1Env):
         ray_starts.append(start_pos)
     
     ray_starts = jp.array(ray_starts)
-    ray_dir = jp.array([0.0, 0.0, -1.0])
+    ray_dir = jp.array([0.0, 0.0, -1.0]) # All rays point straight down (negative Z direction)
     
     # Batch ray cast
     distances, _ = ray.batch_ray(
         self._mj_model, data, ray_starts, ray_dir, (),
         True, bodyexclude=self._robot_body_ids
-    )
+    ) # Returns the distance from each start point to the first terrain hit below
     
     # Use minimum distance (highest terrain point under torso)
     min_distance = jp.min(distances)
@@ -776,9 +775,10 @@ class Joystick(go1_base.Go1Env):
     
     return height_above_terrain
 
+
   def _get_terrain_height_below_feet(self, model: mjx.Model, data: mjx.Data) -> jax.Array:
         """Sample terrain height around each foot with a single batch ray cast."""
-        foot_pos = data.site_xpos[self._feet_site_id]  # Shape: (4, 3)
+        foot_pos = data.site_xpos[self._feet_site_id]  # Shape: (4, 3) 3D world positions of the 4 feet
         
         # Define sampling pattern (e.g., 5 points per foot: center + 4 around)
         # These are XY offsets from each foot
@@ -836,7 +836,7 @@ class Joystick(go1_base.Go1Env):
             True, bodyexclude=self._robot_body_ids
         )  # Shape: (20,)
         # print(geom_ids.min())
-        print(self._robot_body_ids)
+        # print(self._robot_body_ids)
         # Reshape to (4 feet, 5 samples) and take max height around each foot
         distances_per_foot = distances.reshape(4, num_samples)
         
@@ -850,11 +850,12 @@ class Joystick(go1_base.Go1Env):
         
         return terrain_heights
 
+
   def _cost_feet_clearance(self, data: mjx.Data, contact: jax.Array) -> jax.Array:
         """Penalize insufficient clearance during swing phase only."""
-        feet_vel = data.sensordata[self._foot_linvel_sensor_adr]
-        vel_xy = feet_vel[..., :2]
-        vel_norm = jp.sqrt(jp.linalg.norm(vel_xy, axis=-1))
+        feet_vel = data.sensordata[self._foot_linvel_sensor_adr] # 3D velocities of each foot (4, 3)
+        vel_xy = feet_vel[..., :2] # XY components of foot velocities
+        vel_norm = jp.sqrt(jp.linalg.norm(vel_xy, axis=-1)) # Norm of XY velocities (4,)
         
         # Get terrain clearance
         clearance = self._get_terrain_height_below_feet(self._mj_model, data)
@@ -865,25 +866,28 @@ class Joystick(go1_base.Go1Env):
         # Only penalize insufficient clearance, and only during swing phase
         insufficient_clearance = jp.maximum(0, min_safe_clearance - clearance)
 
-        return jp.sum(insufficient_clearance * vel_norm * (~contact))
+        # ~contact is True during swing phase. vel_norm scales penalty by foot speed (less penalty for slow movement)
+        return jp.sum(insufficient_clearance * vel_norm * (~contact)) 
+
 
   # Perturbation and command sampling.
-
   def _maybe_apply_perturbation(self, state: mjx_env.State) -> mjx_env.State:
+    # Generate a random horizontal direction vector 
     def gen_dir(rng: jax.Array) -> jax.Array:
       angle = jax.random.uniform(rng, minval=0.0, maxval=jp.pi * 2)
       return jp.array([jp.cos(angle), jp.sin(angle), 0.0])
 
+    # 
     def apply_pert(state: mjx_env.State) -> mjx_env.State:
-      t = state.info["pert_steps"] * self.dt
-      u_t = 0.5 * jp.sin(jp.pi * t / state.info["pert_duration_seconds"])
+      t = state.info["pert_steps"] * self.dt # Current time into the perturbation
+      u_t = 0.5 * jp.sin(jp.pi * t / state.info["pert_duration_seconds"]) # Smooth perturbation profile
       # kg * m/s * 1/s = m/s^2 = kg * m/s^2 (N).
       force = (
           u_t  # (unitless)
           * self._torso_mass  # kg
           * state.info["pert_mag"]  # m/s
           / state.info["pert_duration_seconds"]  # 1/s
-      )
+      ) # Newtons: F = m * v / t
       xfrc_applied = jp.zeros((self.mjx_model.nbody, 6))
       xfrc_applied = xfrc_applied.at[self._torso_body_id, :3].set(
           force * state.info["pert_dir"]
@@ -925,6 +929,7 @@ class Joystick(go1_base.Go1Env):
         state,
     )
 
+
   def sample_command(self, rng: jax.Array, x_k: jax.Array) -> jax.Array:
     rng, choice_rng, y_rng, w_rng, z_rng = jax.random.split(rng, 5)
     
@@ -935,8 +940,8 @@ class Joystick(go1_base.Go1Env):
     y_k = jax.random.uniform(
         y_rng, shape=(3,), minval=-self._cmd_a, maxval=self._cmd_a
     )
-    z_k = jax.random.bernoulli(z_rng, self._cmd_b, shape=(3,))
-    w_k = jax.random.bernoulli(w_rng, 0.5, shape=(3,))
+    z_k = jax.random.bernoulli(z_rng, self._cmd_b, shape=(3,)) # Decides (with prob cmd_b) whether to use the new sampled value or keep the old one
+    w_k = jax.random.bernoulli(w_rng, 0.5, shape=(3,)) # For each dimension, randomly decides (50% chance) whether to update the value or keep the old one
     
     # Create mask to only update one velocity type
     velocity_mask = jp.zeros(3)
