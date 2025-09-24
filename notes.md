@@ -7,6 +7,7 @@
 
 # NOTES
 - Set steps_per_reset to maximum 40 to reduce GPU memory usage and avoid RuntimeError: INTERNAL: cuSolver internal error.
+- If the above does not works switch to CPU with: ```export JAX_PLATFORM_NAME=cpu```
 - Search for 'CHECK' to find places to modify/add code.
 
 
