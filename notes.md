@@ -7,6 +7,9 @@
 
 - Check if the training with noisy student is not the same as exteroceptive training with noise.
 
+- Fix wall height function (sample_wall_heights).
+
+
 
 # NOTES
 - Set steps_per_reset to maximum 40 to reduce GPU memory usage and avoid RuntimeError: INTERNAL: cuSolver internal error.
