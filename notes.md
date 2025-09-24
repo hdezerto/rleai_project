@@ -5,32 +5,33 @@
 
 - Should we use random perturbations during training? (not active now)
 
+- Check if the training with noisy student is not the same as exteroceptive training with noise.
+
+
 # NOTES
 - Set steps_per_reset to maximum 40 to reduce GPU memory usage and avoid RuntimeError: INTERNAL: cuSolver internal error.
+- Changing to 10GB GPU might also work.
 - If the above does not works switch to CPU with: ```export JAX_PLATFORM_NAME=cpu```
 - Search for 'CHECK' to find places to modify/add code.
 
 
 # USEFUL COMMANDS:
-
 - `deactivate` to exit the virtual environment. 
 - `watch -n 1 nvidia-smi` to monitor GPU usage in real-time (run in a separate terminal).
+
 
 
 ---
 ## Grade E: Implement Height Map Sensors & Integrate into RL
 
 1. **Add Height Map Sensors (Raycasting)**
-	- In `custom_env.py`, implement raycasting from several points on the robot (e.g., feet, torso, or a ring around the base) downwards to measure the distance to the terrain.
-	- Collect these distances into a vector (height map) representing the terrain under/around the robot.
+	- In `custom_env.py`, implement raycasting from several points on the robot downwards to measure the distance to the terrain.
 
 2. **Integrate Sensor Data into Observations**
-	- Modify the environment’s observation space to include the height map sensor readings alongside the usual proprioceptive data (joint angles, velocities, etc.).
-	- Ensure the RL agent receives this new information at every step.
+	- Modify the environment’s observation space to include the height map sensor readings alongside the usual proprioceptive data.
 
 3. **Train the RL Policy**
-	- Use your training script to train a policy with the new observation space.
-	- The agent should now have access to both internal state and exteroceptive (height map) information.
+	- Use your training script to train a policy with the new observation space. The agent should now have access to both internal state and exteroceptive (height map) information.
 
 
 ## Grade C: Demonstrate Policy Adapts to Obstacles
@@ -62,10 +63,3 @@
 9. **Analyze and Discuss**
 	- Summarize the results: How does privileged information help? What are the challenges with noisy/partial observations?
 	- Relate your findings to sim-to-real transfer issues.
-
-
-**Tips:**
-- Start simple: Get the height map sensors working and integrated before moving to imitation learning.
-- Use visualization: Scripts like `visualize_custom_env.py` are great for debugging and demonstrating sensor effects.
-- Keep experiments manageable: For the teacher-student part, use a small number of episodes and simple imitation (e.g., behavior cloning) to save time.
-- Document everything: Take notes and save results for your report.
