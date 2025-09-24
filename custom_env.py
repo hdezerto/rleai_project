@@ -255,10 +255,10 @@ class Joystick(go1_base.Go1Env):
 
 
   def reset(self, rng: jax.Array) -> mjx_env.State:
-    qpos = self._init_q
-    qvel = jp.zeros(self.mjx_model.nv)
+    qpos = self._init_q # Start from default "home" joint positions
+    qvel = jp.zeros(self.mjx_model.nv) # Start from zero velocity
 
-    # x=+U(-0.5, 0.5), y=+U(-0.5, 0.5), yaw=U(-3.14, 3.14).
+    # x=+U(-0.1, 0.1), y=+U(-0.1, 0.1), yaw=U(-pi, pi).
     rng, key = jax.random.split(rng)
     dxy = jax.random.uniform(key, (2,), minval=-0.1, maxval=0.1)
     qpos = qpos.at[0:2].set(qpos[0:2] + dxy)
@@ -271,7 +271,7 @@ class Joystick(go1_base.Go1Env):
 
     # Sample wall heights for this episode
     rng, wall_rng = jax.random.split(rng)
-    wall_heights, _ = self.sample_wall_heights(wall_rng)
+    wall_heights, _ = self.sample_wall_heights(wall_rng) # CHECK
 
     # d(xyzrpy)=U(-0.5, 0.5)
     rng, key = jax.random.split(rng)
@@ -279,6 +279,7 @@ class Joystick(go1_base.Go1Env):
         jax.random.uniform(key, (6,), minval=-0.5, maxval=0.5)
     )
 
+    # Create data with original model (since wall heights are part of qpos)
     data = mjx_env.make_data(
         self.mj_model,
         qpos=qpos,
@@ -293,7 +294,7 @@ class Joystick(go1_base.Go1Env):
     data = mjx.forward(self.mjx_model, data)
 
     # Set wall heights using mocap control
-    data = self.set_wall_mocap_positions(data, wall_heights)
+    data = self.set_wall_mocap_positions(data, wall_heights) # CHECK
 
     rng, key1, key2, key3 = jax.random.split(rng, 4)
     time_until_next_pert = jax.random.uniform(
@@ -365,35 +366,41 @@ class Joystick(go1_base.Go1Env):
     reward, done = jp.zeros(2)
     return mjx_env.State(data, obs, reward, done, metrics, info)
 
+
   def step(self, state: mjx_env.State, action: jax.Array) -> mjx_env.State:
+
+    # Apply perturbation if enabled
     if self._config.pert_config.enable:
       state = self._maybe_apply_perturbation(state)
 
+    # Compute target joints for the robot
     motor_targets = self._default_pose + action * self._config.action_scale
 
+    # Advance the simulation using the current state and the computed motor targets
     # Wall heights are now part of qpos, so we use the original model
     data = mjx_env.step(
         self.mjx_model, state.data, motor_targets, self.n_substeps
     )
 
+    # CHECK
     # NOTE: You can do something similar to check for knee collision if you want to integrate this in your reward.
     # Vectorized feet-floor collision detection
     contact = jax.vmap(lambda geom_id: collision.geoms_colliding(data, geom_id, self._floor_geom_id))(
         self._feet_geom_id
-    )
+    ) # Boolean array: one entry per foot, True if in contact with the floor
     # Vectorized feet-wall collision detection
     feet_wall_collisions = jax.vmap(
         lambda foot_geom_id: jax.vmap(
             lambda wall_geom_id: collision.geoms_colliding(data, foot_geom_id, wall_geom_id)
         )(self._wall_geom_ids)
-    )(self._feet_geom_id)
+    )(self._feet_geom_id) # 2D boolean array: shape (num_feet, num_walls), True if a foot is in contact with a wall
     # Check if any foot collides with any wall
-    contact = contact | feet_wall_collisions.any(axis=1)
+    contact = contact | feet_wall_collisions.any(axis=1) # Updates the contact array: a foot is considered in contact if it touches the floor or any wall
 
-    contact_filt = contact | state.info["last_contact"]
+    contact_filt = contact | state.info["last_contact"] # Combines current and previous contacts to avoid missing brief contacts
 
-    first_contact = (state.info["feet_air_time"] > 0.0) * contact_filt
-    state.info["feet_air_time"] += self.dt
+    first_contact = (state.info["feet_air_time"] > 0.0) * contact_filt # True for feet that have just made contact after being in the air
+    state.info["feet_air_time"] += self.dt # Increment air time for all feet (later reset for feet that are in contact)
     p_f = data.site_xpos[self._feet_site_id]
     p_fz = p_f[..., -1]  # Absolute foot height
     terrain_distance = self._get_terrain_height_below_feet(self._mj_model, data)
@@ -403,18 +410,18 @@ class Joystick(go1_base.Go1Env):
         contact,
         state.info["swing_peak"],  # Don't update if in contact
         jp.maximum(state.info["swing_peak"], relative_swing_height)
-    )
+    ) # Updates the peak swing height for each foot, but only if the foot is not in contact (i.e., during swing phase)
 
     obs = self._get_obs(data, state.info)
-    done = self._get_termination(data)
+    done = self._get_termination(data) # Check if the episode should terminate (e.g., if the robot has fallen)
 
     rewards = self._get_reward(
         data, action, state.info, state.metrics, done, first_contact, contact
     )
     rewards = {
         k: v * self._config.reward_config.scales[k] for k, v in rewards.items()
-    }
-    reward = jp.clip(sum(rewards.values()) * self.dt, 0.0, 10000.0)
+    } # Scales each reward by its configured weight
+    reward = jp.clip(sum(rewards.values()) * self.dt, 0.0, 10000.0) # Total reward, clipped to avoid extreme values
 
     state.info["last_last_act"] = state.info["last_act"]
     state.info["last_act"] = action
@@ -468,10 +475,12 @@ class Joystick(go1_base.Go1Env):
     state = state.replace(data=data, obs=obs, reward=reward, done=done)
     return state
 
+
   def _get_termination(self, data: mjx.Data) -> jax.Array:
     fall_termination = self.get_upvector(data)[-1] < 0.0
     return fall_termination
 
+  # CHECK: privileged state will be used for teacher-student training
   def _get_obs(
       self, data: mjx.Data, info: dict[str, Any]
   ) -> Dict[str, jax.Array]:
@@ -482,7 +491,7 @@ class Joystick(go1_base.Go1Env):
         + (2 * jax.random.uniform(noise_rng, shape=gyro.shape) - 1)
         * self._config.noise_config.level
         * self._config.noise_config.scales.gyro
-    )
+    ) # Add uniform noise to gyro readings
 
     gravity = self.get_gravity(data)
     info["rng"], noise_rng = jax.random.split(info["rng"])
@@ -491,7 +500,7 @@ class Joystick(go1_base.Go1Env):
         + (2 * jax.random.uniform(noise_rng, shape=gravity.shape) - 1)
         * self._config.noise_config.level
         * self._config.noise_config.scales.gravity
-    )
+    ) # Add uniform noise to gravity vector
 
     # Only include robot joint angles, not wall joints
     # Robot joints are at indices [7:19] (12 leg joints)
@@ -503,7 +512,7 @@ class Joystick(go1_base.Go1Env):
         + (2 * jax.random.uniform(noise_rng, shape=joint_angles.shape) - 1)
         * self._config.noise_config.level
         * self._config.noise_config.scales.joint_pos
-    )
+    ) # Add uniform noise to joint angles
 
     joint_vel = data.qvel[6:18]  # Only robot joint velocities
     info["rng"], noise_rng = jax.random.split(info["rng"])
@@ -512,7 +521,7 @@ class Joystick(go1_base.Go1Env):
         + (2 * jax.random.uniform(noise_rng, shape=joint_vel.shape) - 1)
         * self._config.noise_config.level
         * self._config.noise_config.scales.joint_vel
-    )
+    ) # Add uniform noise to joint velocities
 
     linvel = self.get_local_linvel(data)
     info["rng"], noise_rng = jax.random.split(info["rng"])
@@ -521,7 +530,7 @@ class Joystick(go1_base.Go1Env):
         + (2 * jax.random.uniform(noise_rng, shape=linvel.shape) - 1)
         * self._config.noise_config.level
         * self._config.noise_config.scales.linvel
-    )
+    ) # Add uniform noise to linear velocity
 
     state = jp.hstack([
         noisy_linvel,  # 3, range [ ]
@@ -546,20 +555,21 @@ class Joystick(go1_base.Go1Env):
         gravity,  # 3
         linvel,  # 3
         angvel,  # 3
-        joint_angles - self._default_pose,  # 12
+        joint_angles - self._default_pose,  # 12 (offset from default pose)
         joint_vel,  # 12
         data.actuator_force,  # 12
         info["last_contact"],  # 4
         feet_vel,  # 4*3
         info["feet_air_time"],  # 4
-        data.xfrc_applied[self._torso_body_id, :3],  # 3
-        info["steps_since_last_pert"] >= info["steps_until_next_pert"],  # 1
+        data.xfrc_applied[self._torso_body_id, :3],  # 3 (force applied to torso)
+        info["steps_since_last_pert"] >= info["steps_until_next_pert"],  # 1 (bool, 1 if perturbation is active)
     ])
 
     return {
         "state": state,
         "privileged_state": privileged_state,
     }
+
 
   def _get_reward(
       self,
@@ -599,6 +609,7 @@ class Joystick(go1_base.Go1Env):
         "dof_pos_limits": self._cost_joint_pos_limits(data.qpos[7:19]),
     }
 
+
   def _cost_torso_height(self, data: mjx.Data) -> jax.Array:
     """Penalize deviation from target torso height above terrain."""
     height_above_terrain = self._get_torso_terrain_height(data)
@@ -607,6 +618,7 @@ class Joystick(go1_base.Go1Env):
     # Squared error from target height
     return jp.square(height_above_terrain - target_height)
   # Tracking rewards.
+
 
   def _reward_tracking_lin_vel(
       self,
@@ -617,6 +629,7 @@ class Joystick(go1_base.Go1Env):
     lin_vel_error = jp.sum(jp.square(commands[:2] - local_vel[:2]))
     return jp.exp(-lin_vel_error)
 
+
   def _reward_tracking_ang_vel(
       self,
       commands: jax.Array,
@@ -626,15 +639,17 @@ class Joystick(go1_base.Go1Env):
     ang_vel_error = jp.square(commands[2] - ang_vel[2])
     return jp.exp(-ang_vel_error / self._config.reward_config.tracking_sigma)
 
-  # Base-related rewards.
 
+  # Base-related rewards.
   def _cost_lin_vel_z(self, global_linvel) -> jax.Array:
     # Penalize z axis base linear velocity.
     return jp.square(global_linvel[2])
 
+
   def _cost_ang_vel_xy(self, global_angvel) -> jax.Array:
     # Penalize xy axes base angular velocity.
     return jp.sum(jp.square(global_angvel[:2]))
+
 
   def _cost_orientation(self, torso_zaxis: jax.Array,
                          tolerance: float = 0.15,   ## Consider increasing this a bit

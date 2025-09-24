@@ -1,9 +1,9 @@
 # QUESTIONS
 - I think the code already uses raycasting to measure torso height. Which other directions should we measure? Maybe forward and sideways, all angled slightly downward? A ring around the torso downward?
 
-
 - Check how to integrate the new measurements into the reward function.
 
+- Should we use random perturbations during training? (not active now)
 
 # NOTES
 - Set steps_per_reset to maximum 40 to reduce GPU memory usage and avoid RuntimeError: INTERNAL: cuSolver internal error.
