@@ -17,39 +17,7 @@
 - `watch -n 1 nvidia-smi` to monitor GPU usage in real-time (run in a separate terminal).
 
 
-
-
 ---
-# In-depth Explanation: Codebase Changes & Adding Exteroceptive Information
-
-## 1. Environment Definition (`custom_env.py`)
-- Main file for defining/modifying the simulation environment.
-- Add exteroceptive sensors (e.g., distance) here. Implement logic for the agent to sense walls, floor height, etc.
-- Modify the reward function to use new sensor data.
-
-## 2. Task Specification (`custom_env.xml`, `custom_env_debug_wall.xml`)
-- XML files define the physical layout (robot, walls, obstacles).
-- The only functional difference is the presence of the additional debug wall in custom_env_debug_wall.xml, which is used for development and troubleshooting.
-
-## 3. Knee Collisions
-- Simulation detects knee collisions; knee IDs are available.
-- Penalize knee collisions in the reward function if desired.
-
-## 4. Environment Randomization / Curriculum Learning
-- Environment can randomize wall heights/positions on reset (curriculum learning).
-- Control these changes in `custom_env.py` (e.g., increase wall height as agent improves).
-- Randomize other aspects for sensors to detect as needed.
-
-## 5. Visualization Script (`visualize_custom_env.py`)
-- Test and visualize environment changes and sensor outputs.
-- Overlays sensor readings (e.g., torso height) on simulation video.
-- Extend to visualize your own exteroceptive sensor data.
-
-
-
----
-# GitHub Copilot (GPT-4.1) guidance:
-
 ## Grade E: Implement Height Map Sensors & Integrate into RL
 
 1. **Add Height Map Sensors (Raycasting)**
@@ -61,7 +29,7 @@
 	- Ensure the RL agent receives this new information at every step.
 
 3. **Train the RL Policy**
-	- Use your training script (e.g., `custom_ppo_train.py`) to train a policy with the new observation space.
+	- Use your training script to train a policy with the new observation space.
 	- The agent should now have access to both internal state and exteroceptive (height map) information.
 
 
