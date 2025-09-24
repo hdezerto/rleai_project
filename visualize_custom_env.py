@@ -77,7 +77,7 @@ def main():
 
             # Calculate actual terrain height (our values)
             actual_terrain_height = jit_actual_terrain_height(state.data)
-            actual_terrain_heights.append(float(terrain_height))
+            actual_terrain_heights.append(float(actual_terrain_height))
 
             # Check for NaN/inf in reward
             if not jp.isfinite(state.reward):
