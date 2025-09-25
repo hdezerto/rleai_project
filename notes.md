@@ -1,14 +1,15 @@
 # QUESTIONS
-- I think the code already uses raycasting to measure torso height. Which other directions should we measure? Maybe forward and sideways, all angled slightly downward? A ring around the torso downward?
+
+- How to compare performance? Just visualize the gifs?
 
 - Check how to integrate the new measurements into the reward function.
 
-- Should we use random perturbations during training? (not active now)
-
-- Check if the training with noisy student is not the same as exteroceptive training with noise.
-
 - Fix wall height function (sample_wall_heights).
 
+- Check if this is the right approach:
+	- Grade E/C: compare proprioceptive vs exteroceptive both trained noise-FREE
+	- Grade A: train teacher with noise-FREE/priviledge info, student with noisy/partial info. Compare this student with a policy trained directly with noisy/partial info.
+(this is not what the current code implements)
 
 
 # NOTES
@@ -25,44 +26,24 @@
 
 
 ---
-## Grade E: Implement Height Map Sensors & Integrate into RL
+## Grade E:
 
-1. **Add Height Map Sensors (Raycasting)**
-	- In `custom_env.py`, implement raycasting from several points on the robot downwards to measure the distance to the terrain.
+- Implement simulated height map sensors for the robot to sense obstacles.
+- Integrate this sensor data into the RL training loop (building on Lab 1).
 
-2. **Integrate Sensor Data into Observations**
-	- Modify the environment’s observation space to include the height map sensor readings alongside the usual proprioceptive data.
+## Grade C:
 
-3. **Train the RL Policy**
-	- Use your training script to train a policy with the new observation space. The agent should now have access to both internal state and exteroceptive (height map) information.
-
-
-## Grade C: Demonstrate Policy Adapts to Obstacles
-
-4. **Train and Evaluate**
-	- Train the policy in environments with obstacles (walls, steps, rough terrain).
-	- Visualize and compare the robot’s behavior with and without the height map sensors.
-	- Show that the policy adapts its gait or actions when encountering obstacles (e.g., slows down, lifts legs higher, changes path).
-
-5. **Document Results**
-	- Record videos or plots showing the difference in behavior.
-	- Briefly explain how the exteroceptive information changes the policy’s response to obstacles.
+- Train the policy with the new sensor data.
+- Demonstrate that the policy changes its behavior when encountering obstacles (e.g., adapts gait or maneuvers differently).
 
 
-## Grade A: Teacher-Student Learning with Privileged Information
+## Grade A:
 
-6. **Teacher Policy (Privileged Information)**
-	- Train a “teacher” policy with access to full, noise-free, or privileged information (e.g., perfect terrain map, full robot pose).
-	- This policy should perform very well in simulation.
+- Implement a teacher-student learning approach (as in the referenced paper):
+	- The teacher is trained with privileged (full, noise-free) information.
+	- The student is trained to mimic the teacher but only has access to noisy or partial information (more realistic for real-world deployment).
 
-7. **Student Policy (Noisy/Partial Information)**
-	- Train a “student” policy with more realistic, noisy, or partial observations (e.g., noisy height map, no access to some state variables).
-	- Use imitation learning: have the student mimic the teacher’s actions (behavior cloning, DAgger, or similar).
+- Compare the student’s performance to a policy trained directly with noisy/partial information, highlighting the challenges of sim-to-real transfer.
 
-8. **Compare Direct vs. Teacher-Student Training**
-	- Optionally, train a policy directly with the noisy/partial information (no teacher).
-	- Compare the performance and learning speed of the student (imitation) vs. direct training.
 
-9. **Analyze and Discuss**
-	- Summarize the results: How does privileged information help? What are the challenges with noisy/partial observations?
-	- Relate your findings to sim-to-real transfer issues.
+
