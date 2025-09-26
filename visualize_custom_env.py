@@ -1,12 +1,11 @@
 #!/usr/bin/env python3
 """Visualization script for Go1 with height scanner."""
-
 import os
-# Tell XLA to use Triton GEMM
+# Tell XLA to use Triton GEMM for faster GPU matrix multiplication in JAX
 xla_flags = os.environ.get('XLA_FLAGS', '')
 xla_flags += ' --xla_gpu_triton_gemm_any=True'
 os.environ['XLA_FLAGS'] = xla_flags
-os.environ['MUJOCO_GL'] = 'egl'
+os.environ['MUJOCO_GL'] = 'egl' # Use EGL for offscreen rendering with MuJoCo
 
 import jax
 import jax.numpy as jp
@@ -16,11 +15,10 @@ import cv2
 from PIL import Image, ImageDraw, ImageFont
 from custom_env import Joystick, default_config
 
-
 def main():
-    # Set up visualization options
-    scene_option = mujoco.MjvOption()
-    scene_option.geomgroup[2] = True   # Show visual geoms
+    # Set up visualization options (later used in env.render())
+    scene_option = mujoco.MjvOption() # Holds visualization options settings for the MuJoCo scene
+    scene_option.geomgroup[2] = True   # Show visual geoms (e.g. robot body, walls, floor)
     scene_option.geomgroup[3] = False  # Hide collision geoms
     scene_option.geomgroup[5] = True   # Show sites (including height scanner visualization)
     scene_option.flags[mujoco.mjtVisFlag.mjVIS_CONTACTPOINT] = True  # Show contact points
@@ -44,17 +42,19 @@ def main():
     # Initialize
     key = jax.random.PRNGKey(15)
 
+    os.makedirs("gifs", exist_ok=True) # Ensure output directory exists
+
     print("Running simulation...")
 
     # Perform multiple random resets to show different wall configurations
-    num_resets = 10
-    steps_per_reset = 50  # More steps to show movement
+    num_resets = 5
+    steps_per_reset = 40  # More steps to show movement
 
     for reset_idx in range(num_resets):
         print(f"Creating GIF {reset_idx+1}/{num_resets}")
 
         # Randomize wall heights for this reset
-        # set_wall_heights(env, range_min=0.05, range_max=0.4)
+        #set_wall_heights(env, range_min=0.05, range_max=0.4)
 
         # Generate new random key for this reset
         key, reset_key = jax.random.split(key)
@@ -104,13 +104,14 @@ def main():
         )
 
         # Create GIF for this reset
-        gif_filename = f'wall_randomization_{reset_idx+1:02d}.gif'
+        #gif_filename = f'wall_randomization_{reset_idx+1:02d}7.gif'
+        gif_filename = os.path.join("gifs", f"wall_randomization_{reset_idx+1:02d}7.gif")
         print(f"    Saving GIF to {gif_filename}...")
 
         # Convert frames to PIL Images and add terrain height overlay
         pil_images = []
         for i, frame in enumerate(frames):
-            pil_image = Image.fromarray(frame)
+            pil_image = Image.fromarray(frame) # Convert NumPy array to PIL Image
 
             # Add terrain height overlay
             draw = ImageDraw.Draw(pil_image)
