@@ -137,6 +137,7 @@ class Joystick(go1_base.Go1Env):
       xml_path: str = None, 
       config: config_dict.ConfigDict = default_config(),
       config_overrides: Optional[Dict[str, Union[str, int, list[Any]]]] = None,
+      total_steps: Optional[int] = None,  # New parameter for curriculum learning
   ):
     if xml_path is None:
         raise ValueError("xml_path must be provided for Joystick environment.")
@@ -148,6 +149,9 @@ class Joystick(go1_base.Go1Env):
         config=config,
         config_overrides=config_overrides,
     )
+    
+    self._reset_count = 0  # Counter for number of resets, useful for curriculum learning
+    self._total_steps = total_steps # Store total_steps for curriculum learning
     self._post_init() # Custom post-init to set up additional attributes
 
 
@@ -226,18 +230,34 @@ class Joystick(go1_base.Go1Env):
   # For instance, you could pass another parameter to the environment init that specifies training length
   # And then count the number of resets, or set it externally, and set wall heights based on that.
   
-  #def sample_wall_heights(self, rng, range_min=0.2, range_max=0.4): # HUGO EDITED
-  def sample_wall_heights(self, rng, range_min=0.0, range_max=0.2):
-    """Sample random wall heights (JAX-compatible)."""
-    rng, height_key = jax.random.split(rng)
-    num_walls = len(self._wall_geom_ids)
-    wall_heights = jax.random.uniform(
-        height_key,
-        shape=(num_walls,),
-        minval=range_min,
-        maxval=range_max
-    )
-    return wall_heights, rng
+# OLD SAMPLING FUNCTION
+#   def sample_wall_heights(self, rng, range_min=0.2, range_max=0.2):
+#     """Sample random wall heights (JAX-compatible)."""
+#     rng, height_key = jax.random.split(rng)
+#     num_walls = len(self._wall_geom_ids)
+#     wall_heights = jax.random.uniform(
+#         height_key,
+#         shape=(num_walls,),
+#         minval=range_min,
+#         maxval=range_max
+#     )
+#     return wall_heights, rng
+
+    def sample_wall_heights(self, rng, range_min=0.2, range_max=0.4):
+        """Sample random wall heights (JAX-compatible, curriculum on upper value only)."""
+        # Curriculum: sample upper value between range_min and range_max
+        current_step = self._reset_count * self._config.episode_length
+        progress = min(current_step / self._total_steps, 1.0)
+        max_wall_height = range_min + (range_max - range_min) * progress
+        rng, height_key = jax.random.split(rng)
+        num_walls = len(self._wall_geom_ids)
+        wall_heights = jax.random.uniform(
+            height_key,
+            shape=(num_walls,),
+            minval=range_min,
+            maxval=max_wall_height
+        )
+        return wall_heights, rng
 
 
   def set_wall_mocap_positions(self, data, wall_heights):
@@ -273,8 +293,9 @@ class Joystick(go1_base.Go1Env):
     qpos = qpos.at[3:7].set(new_quat)
 
     # Sample wall heights for this episode
+    self._reset_count += 1 # Increment reset counter for curriculum learning
     rng, wall_rng = jax.random.split(rng)
-    wall_heights, _ = self.sample_wall_heights(wall_rng) # CHECK
+    wall_heights, _ = self.sample_wall_heights(wall_rng)
 
     # d(xyzrpy)=U(-0.5, 0.5)
     rng, key = jax.random.split(rng)
