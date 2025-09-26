@@ -3,6 +3,7 @@
 - How to compare performance? Just visualize the gifs?
 
 - Check how to integrate the new measurements into the reward function.
+I think we dont need to change anything in the reward function, just add the new observations to the state.
 
 - Fix wall height function (sample_wall_heights).
 
@@ -10,6 +11,10 @@
 	- Grade E/C: compare proprioceptive vs exteroceptive both trained noise-FREE
 	- Grade A: train teacher with noise-FREE/priviledge info, student with noisy/partial info. Compare this student with a policy trained directly with noisy/partial info.
 (this is not what the current code implements)
+
+- Check the perturbation code in the evaluation cell.
+
+- Check the weight for feet_clearance in the proprioceptive training.
 
 
 # NOTES
@@ -29,6 +34,7 @@
 ## Grade E:
 
 - Implement simulated height map sensors for the robot to sense obstacles.
+	I think here the height map should be in the robot's reference frame (body frame).
 - Integrate this sensor data into the RL training loop (building on Lab 1).
 
 ## Grade C:
