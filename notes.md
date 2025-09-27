@@ -1,20 +1,27 @@
 # QUESTIONS
 
 - How to compare performance? Just visualize the gifs?
+Finn: Average feet time to check if the robot lifts more its feet to climb steps.
 
-- Check how to integrate the new measurements into the reward function.
-I think we dont need to change anything in the reward function, just add the new observations to the state.
+- Should sample_wall_heights use uniform sampling (increasing upper bound) OR deterministic linear increase?
 
-- Fix wall height function (sample_wall_heights).
-
-- Check if this is the right approach:
-	- Grade E/C: compare proprioceptive vs exteroceptive both trained noise-FREE
-	- Grade A: train teacher with noise-FREE/priviledge info, student with noisy/partial info. Compare this student with a policy trained directly with noisy/partial info.
-(this is not what the current code implements)
+- For evaluation, should the wall height be fixed or increase? Now it's using the max height (fixed).
 
 - Check the perturbation code in the evaluation cell.
 
 - Check the weight for feet_clearance in the proprioceptive training.
+
+- Check if this is the right approach:
+	- Grade E/C: compare proprioceptive vs exteroceptive both trained with noisy/partial info.
+	- Grade A: train teacher with noise-FREE/priviledge info, use it to train student with noisy/partial info. Compare this student with a policy trained directly with noisy/partial info (same exteroceptive policy trained in Grade E/C, right?)
+(this is what the current code implements)
+
+
+# TO DO
+- Exteroceptive flag is implemented, just implement the actual exteroceptive extraction method.
+- Integrate knee collision.
+- Train the models.
+- Student teacher approach.
 
 
 # NOTES

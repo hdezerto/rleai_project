@@ -138,6 +138,9 @@ class Joystick(go1_base.Go1Env):
         config: config_dict.ConfigDict = default_config(),
         config_overrides: Optional[Dict[str, Union[str, int, list[Any]]]] = None,
         total_steps: Optional[int] = None,  # New parameter for curriculum learning
+        steps_per_reset: Optional[int] = None,  # Only used for visualizing the environment
+        evaluation: bool = False,  # If True, disables curriculum learning. Optional
+        exteroceptive: bool = False,  # New flag to control exteroceptive state
     ):
         if xml_path is None:
             raise ValueError("xml_path must be provided for Joystick environment.")
@@ -151,6 +154,12 @@ class Joystick(go1_base.Go1Env):
         )
         self._reset_count = 0  # Counter for number of resets, useful for curriculum learning
         self._total_steps = total_steps # Store total_steps for curriculum learning
+        if steps_per_reset is None:
+            self._episode_length = self._config.episode_length
+        else:
+            self._episode_length = steps_per_reset
+        self._evaluation = evaluation  # If True, disables curriculum learning
+        self._exteroceptive = exteroceptive  # Store exteroceptive flag
         self._post_init() # Custom post-init to set up additional attributes
 
     def _post_init(self) -> None:
@@ -239,23 +248,40 @@ class Joystick(go1_base.Go1Env):
     #     )
     #     return wall_heights, rng
 
+    # Deterministic curriculum: all wall heights increase linearly with progress
+    # def sample_wall_heights_deterministic(self, range_min=0.2, range_max=0.4):
+    #     """Deterministically set all wall heights to the current curriculum value (no randomness), or fixed for evaluation."""
+    #     num_walls = len(self._wall_geom_ids)
+    #     if getattr(self, '_evaluation', False):
+    #         wall_heights = jp.ones((num_walls,)) * range_max
+    #     else:
+    #         current_step = self._reset_count * self._config.episode_length
+    #         progress = min(current_step / self._total_steps, 1.0)
+    #         wall_height = range_min + (range_max - range_min) * progress
+    #         wall_heights = jp.ones((num_walls,)) * wall_height
+    #     return wall_heights
 
-    def sample_wall_heights(self, rng, range_min=0.2, range_max=0.4):
-        """Sample random wall heights (JAX-compatible, curriculum on upper value only)."""
-        # Curriculum: sample upper value between range_min and range_max
-        current_step = self._reset_count * self._config.episode_length
-        progress = min(current_step / self._total_steps, 1.0)
-        max_wall_height = range_min + (range_max - range_min) * progress
-        rng, height_key = jax.random.split(rng)
+    # Curriculum learning: wall heights sampled every reset, up to range_max at total_steps
+    def sample_wall_heights(self, rng, range_min=0.05, range_max=0.1):
+        """Sample random wall heights with curriculum learning or fixed for evaluation."""
         num_walls = len(self._wall_geom_ids)
-        wall_heights = jax.random.uniform(
-            height_key,
-            shape=(num_walls,),
-            minval=range_min,
-            maxval=max_wall_height
-        )
-        return wall_heights, rng
-
+        if getattr(self, '_evaluation', False):
+            # Evaluation mode: use fixed wall height
+            wall_heights = jp.ones((num_walls,)) * range_max
+            return wall_heights, rng
+        else:
+            # Curriculum: sample upper value between range_min and range_max
+            current_step = self._reset_count * self._episode_length
+            progress = min(current_step / self._total_steps, 1.0)
+            max_wall_height = range_min + (range_max - range_min) * progress
+            rng, height_key = jax.random.split(rng)
+            wall_heights = jax.random.uniform(
+                height_key,
+                shape=(num_walls,),
+                minval=range_min,
+                maxval=max_wall_height
+            )
+            return wall_heights, rng
 
     def set_wall_mocap_positions(self, data, wall_heights):
         """Set wall positions using mocap control."""
@@ -578,6 +604,13 @@ class Joystick(go1_base.Go1Env):
             info["command"],  # 3
         ])
 
+        # ------------- TO DO -------------
+        # If exteroceptive flag is set, append exteroceptive data
+        if self._exteroceptive:
+            extero_data = self._get_exteroceptive(data, info)  # Placeholder method
+            state = jp.hstack([state, extero_data])
+        # ---------------------------------
+
         accelerometer = self.get_accelerometer(data)
         angvel = self.get_global_angvel(data)
 
@@ -606,6 +639,13 @@ class Joystick(go1_base.Go1Env):
             "state": state,
             "privileged_state": privileged_state,
         }
+
+
+    # ------------- TO DO -------------
+    def _get_exteroceptive(self, data: mjx.Data, info: dict[str, Any]) -> jax.Array:
+        # TODO: Implement actual exteroceptive extraction
+        return jp.zeros(10)  # Example: 10-dim placeholder
+    # ---------------------------------
 
 
     def _get_reward(
