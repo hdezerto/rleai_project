@@ -35,6 +35,24 @@ def main():
     xml_path = 'custom_env_debug_wall.xml'
     env = Joystick(xml_path=xml_path, config=default_config(), total_steps=num_resets*steps_per_reset, steps_per_reset=steps_per_reset)
 
+    # ----------------------------
+    # NOTE: Added functionality to visualize ray casting
+    # Get body ids for the mocap bodies
+    ray_count = 9
+    origin_body_ids = [env._mj_model.body(f"ray_mocap_origin_{i}").id for i in range(ray_count)]
+    endpoint_body_ids = [env._mj_model.body(f"ray_mocap_endpoint_{i}").id for i in range(ray_count)]
+
+    # Retireve nr of bodies for ray viz
+    mjx_model = env._mjx_model
+    nbody = mjx_model.nbody
+    nmocap = mjx_model.nmocap
+
+    # Get model and site IDs for ray visualization
+    model = env._mj_model
+    origin_site_ids = [model.site(f"ray_origin_{i}").id for i in range(9)]
+    endpoint_site_ids = [model.site(f"ray_endpoint_{i}").id for i in range(9)]
+    # ----------------------------
+
     # NOTE: For this test, we manually set init_q z position high to avoid collisions with walls
     env._init_q = env._init_q.at[2].set(1.0)
 
@@ -42,6 +60,7 @@ def main():
     jit_reset = jax.jit(env.reset)
     jit_step = jax.jit(env.step)
     jit_terrain_height = jax.jit(env._get_torso_terrain_height)
+    jit_scanned_terrain_height = jax.jit(env._get_exteroceptive)    # Get exteroceptive data 
 
     # Initialize
     key = jax.random.PRNGKey(15)
@@ -64,6 +83,7 @@ def main():
         # Collect frames and terrain heights for this reset
         rollout = []
         terrain_heights = []
+        scanned_terrain_heights = []    # Add list to save exteroceptive data
 
         for step in range(steps_per_reset):
             rollout.append(state)
@@ -71,6 +91,38 @@ def main():
             # Calculate terrain height for this state
             terrain_height = jit_terrain_height(state.data)
             terrain_heights.append(float(terrain_height))
+
+            # -------------------------------------
+            # NOTE: Section for visualizing terrain height/rays
+            # Calculate scanned terrain height (our values)
+            scanned_terrain_height = jit_scanned_terrain_height(state.data)
+            scanned_terrain_heights.append(float(scanned_terrain_height["terrain_height"])) # Why is this done? Scrutinize!
+
+            # Ray visualization logic
+            # Get ray data (assumed to return dict with keys 'origins', 'directions', 'distances')
+            ray_data = scanned_terrain_height
+            origins = np.array(ray_data["origins"])  # shape (9, 3)
+            directions = np.array(ray_data["directions"])  # shape (9, 3)
+            distances = np.array(ray_data["distances"])  # shape (9,)
+            endpoints = origins + directions * distances[:, None]
+
+            mocap_pos = state.data.mocap_pos  # jax array
+
+            # set origins
+            for i, body_id in enumerate(origin_body_ids):
+                mocap_index = int(body_id - nbody + nmocap)  # convert to python int
+                origin_jax = jp.asarray(origins[i])         # convert to jax array shape (3,)
+                mocap_pos = mocap_pos.at[mocap_index].set(origin_jax)
+
+            # set endpoints
+            for i, body_id in enumerate(endpoint_body_ids):
+                mocap_index = int(body_id - nbody + nmocap)
+                endpoint_jax = jp.asarray(endpoints[i])
+                mocap_pos = mocap_pos.at[mocap_index].set(endpoint_jax)
+
+            # write back into state
+            state = state.replace(data=state.data.replace(mocap_pos=mocap_pos))
+            # -------------------------------------
 
             # Check for NaN/inf in reward
             if not jp.isfinite(state.reward):
@@ -114,7 +166,7 @@ def main():
 
             # Add terrain height overlay
             draw = ImageDraw.Draw(pil_image)
-            terrain_height_text = f"Terrain Height: {terrain_heights[i]:.3f}m"
+            terrain_height_text = f"Scanned Terrain Height: {scanned_terrain_heights[i]:.3f}m"
 
             # Try to use a default font, fallback to default if not available
             try:
