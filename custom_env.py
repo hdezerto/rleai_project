@@ -607,7 +607,7 @@ class Joystick(go1_base.Go1Env):
         # ------------- TO DO -------------
         # If exteroceptive flag is set, append exteroceptive data
         if self._exteroceptive:
-            extero_data = self._get_exteroceptive(data, info)  # Placeholder method
+            extero_data = self._get_exteroceptive(data)["terrain_height"]
             state = jp.hstack([state, extero_data])
         # ---------------------------------
 
@@ -642,9 +642,64 @@ class Joystick(go1_base.Go1Env):
 
 
     # ------------- TO DO -------------
-    def _get_exteroceptive(self, data: mjx.Data, info: dict[str, Any]) -> jax.Array:
-        # TODO: Implement actual exteroceptive extraction
-        return jp.zeros(10)  # Example: 10-dim placeholder
+    def _get_exteroceptive(self, data: mjx.Data) -> jax.Array:
+        """Get terrain height in front of the robot with multiple rays for robustness."""
+        torso_pos = data.xpos[self._torso_body_id]
+        torso_rot = data.xmat[self._torso_body_id].reshape(3, 3)  # (9,) body rotation matrix to (3,3), mapping local to world
+
+        print("\n")
+        jax.debug.print("Torso position = {}", torso_pos)
+
+        # Cast rays in a small grid in front of the robot
+        offsets = jp.array([
+            [1.0, 1.0],
+            [1.0, 0],
+            [1.0, -1],
+            [0, 1.0],
+            [0, 0],
+            [0, -1.0],
+            [-1.0, 1.0],
+            [-1.0, 0],
+            [-1.0, -1.0]
+        ])
+
+        # Change scale and postion of the grid
+        scale_grid_factor = 0.2
+        x_shift = 0.5
+        y_shift = 0.0
+        z_shift = 0.5
+
+        offsets = offsets*scale_grid_factor
+
+        # Create ray start positions
+        ray_starts = []
+        for offset in offsets:
+            start_pos = torso_pos + jp.array([offset[0]+x_shift, offset[1], z_shift])
+            jax.debug.print("Start position = {}", start_pos)
+            ray_starts.append(start_pos)
+        ray_starts = jp.array(ray_starts)
+
+        # Rotates all local points to world frame and shifts them based on torso_pos
+        ray_starts = torso_pos + ray_starts @ torso_rot.T
+
+        local_ray_dir = jp.array([0.0, 0.0, -1.0])
+        ray_dir = torso_rot @ local_ray_dir 
+        
+        # Batch ray cast
+        distances, _ = ray.batch_ray(
+            self._mj_model, data, ray_starts, ray_dir, (),
+            True, bodyexclude=self._robot_body_ids
+        )
+
+        mean_distance = jp.mean(distances)
+        terrain_height = mean_distance - z_shift
+        
+        return {
+            "terrain_height": terrain_height,
+            "distances": distances,
+            "directions": ray_dir,
+            "origins": ray_starts,
+        }
     # ---------------------------------
 
 
