@@ -262,7 +262,7 @@ class Joystick(go1_base.Go1Env):
     #     return wall_heights
 
     # Curriculum learning: wall heights sampled every reset, up to range_max at total_steps
-    def sample_wall_heights(self, rng, range_min=0.05, range_max=0.1):
+    def sample_wall_heights(self, rng, range_min=0.05, range_max=0.09):
         """Sample random wall heights with curriculum learning or fixed for evaluation."""
         num_walls = len(self._wall_geom_ids)
         if getattr(self, '_evaluation', False):

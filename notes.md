@@ -1,9 +1,18 @@
+
+# TO DO
+- Exteroceptive flag is implemented, just implement the actual exteroceptive extraction method.
+- Integrate knee collision.
+- Train the models.
+- Student teacher approach.
+
+In the paper (https://arxiv.org/pdf/2201.08117) they use for exteroceptive: height samples around each foot at multiple radii. In the zoom meeting that was also mentioned.
+
 # QUESTIONS
 
 - How to compare performance? Just visualize the gifs?
 Finn: Average feet time to check if the robot lifts more its feet to climb steps.
 
-- Should sample_wall_heights use uniform sampling (increasing upper bound) OR deterministic linear increase?
+- Should sample_wall_heights use uniform sampling (increasing upper bound), deterministic linear increase, or increase when the reward increases (the robot's performance improves)?
 
 - For evaluation, should the wall height be fixed or increase? Now it's using the max height (fixed).
 
@@ -15,13 +24,6 @@ Finn: Average feet time to check if the robot lifts more its feet to climb steps
 	- Grade E/C: compare proprioceptive vs exteroceptive both trained with noisy/partial info.
 	- Grade A: train teacher with noise-FREE/priviledge info, use it to train student with noisy/partial info. Compare this student with a policy trained directly with noisy/partial info (same exteroceptive policy trained in Grade E/C, right?)
 (this is what the current code implements)
-
-
-# TO DO
-- Exteroceptive flag is implemented, just implement the actual exteroceptive extraction method.
-- Integrate knee collision.
-- Train the models.
-- Student teacher approach.
 
 
 # NOTES
