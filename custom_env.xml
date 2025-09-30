@@ -51,6 +51,65 @@
     <body name="wallbody_6" pos="-3.5 0 0.035" mocap="true">
       <geom name="wallgeom_6" contype="1" conaffinity="0" friction="1.0 0.005 0.0001" rgba="0.6 0.6 0.6 1" type="box" size="0.2 8.0 0.035"/>
     </body>
+
+    <!-- SECTION FOR VISUALIZING RAYS -->
+    <!-- Origins -->
+    <body name="ray_mocap_origin_0" mocap="true" pos="0 0 0">
+      <site name="ray_origin_0" pos="0 0 0" size="0.02" rgba="1 0 0 1" type="sphere"/>
+    </body>
+    <body name="ray_mocap_origin_1" mocap="true" pos="0 0 0">
+      <site name="ray_origin_1" pos="0 0 0" size="0.02" rgba="1 0 0 1" type="sphere"/>
+    </body>
+    <body name="ray_mocap_origin_2" mocap="true" pos="0 0 0">
+      <site name="ray_origin_2" pos="0 0 0" size="0.02" rgba="1 0 0 1" type="sphere"/>
+    </body>
+    <body name="ray_mocap_origin_3" mocap="true" pos="0 0 0">
+      <site name="ray_origin_3" pos="0 0 0" size="0.02" rgba="1 0 0 1" type="sphere"/>
+    </body>
+    <body name="ray_mocap_origin_4" mocap="true" pos="0 0 0">
+      <site name="ray_origin_4" pos="0 0 0" size="0.02" rgba="1 0 0 1" type="sphere"/>
+    </body>
+    <body name="ray_mocap_origin_5" mocap="true" pos="0 0 0">
+      <site name="ray_origin_5" pos="0 0 0" size="0.02" rgba="1 0 0 1" type="sphere"/>
+    </body>
+    <body name="ray_mocap_origin_6" mocap="true" pos="0 0 0">
+      <site name="ray_origin_6" pos="0 0 0" size="0.02" rgba="1 0 0 1" type="sphere"/>
+    </body>
+    <body name="ray_mocap_origin_7" mocap="true" pos="0 0 0">
+      <site name="ray_origin_7" pos="0 0 0" size="0.02" rgba="1 0 0 1" type="sphere"/>
+    </body>
+    <body name="ray_mocap_origin_8" mocap="true" pos="0 0 0">
+      <site name="ray_origin_8" pos="0 0 0" size="0.02" rgba="1 0 0 1" type="sphere"/>
+    </body>
+
+    <!-- Endpoints -->
+    <body name="ray_mocap_endpoint_0" mocap="true" pos="0 0 0">
+      <site name="ray_endpoint_0" pos="0 0 0" size="0.02" rgba="0 1 0 1" type="sphere"/>
+    </body>
+    <body name="ray_mocap_endpoint_1" mocap="true" pos="0 0 0">
+      <site name="ray_endpoint_1" pos="0 0 0" size="0.02" rgba="0 1 0 1" type="sphere"/>
+    </body>
+    <body name="ray_mocap_endpoint_2" mocap="true" pos="0 0 0">
+      <site name="ray_endpoint_2" pos="0 0 0" size="0.02" rgba="0 1 0 1" type="sphere"/>
+    </body>
+    <body name="ray_mocap_endpoint_3" mocap="true" pos="0 0 0">
+      <site name="ray_endpoint_3" pos="0 0 0" size="0.02" rgba="0 1 0 1" type="sphere"/>
+    </body>
+    <body name="ray_mocap_endpoint_4" mocap="true" pos="0 0 0">
+      <site name="ray_endpoint_4" pos="0 0 0" size="0.02" rgba="0 1 0 1" type="sphere"/>
+    </body>
+    <body name="ray_mocap_endpoint_5" mocap="true" pos="0 0 0">
+      <site name="ray_endpoint_5" pos="0 0 0" size="0.02" rgba="0 1 0 1" type="sphere"/>
+    </body>
+    <body name="ray_mocap_endpoint_6" mocap="true" pos="0 0 0">
+      <site name="ray_endpoint_6" pos="0 0 0" size="0.02" rgba="0 1 0 1" type="sphere"/>
+    </body>
+    <body name="ray_mocap_endpoint_7" mocap="true" pos="0 0 0">
+      <site name="ray_endpoint_7" pos="0 0 0" size="0.02" rgba="0 1 0 1" type="sphere"/>
+    </body>
+    <body name="ray_mocap_endpoint_8" mocap="true" pos="0 0 0">
+      <site name="ray_endpoint_8" pos="0 0 0" size="0.02" rgba="0 1 0 1" type="sphere"/>
+    </body>
   </worldbody>
 
 
