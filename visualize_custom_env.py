@@ -108,13 +108,13 @@ def main():
 
             mocap_pos = state.data.mocap_pos  # jax array
 
-            # set origins
+            # Set origins
             for i, body_id in enumerate(origin_body_ids):
-                mocap_index = int(body_id - nbody + nmocap)  # convert to python int
-                origin_jax = jp.asarray(origins[i])         # convert to jax array shape (3,)
+                mocap_index = int(body_id - nbody + nmocap)
+                origin_jax = jp.asarray(origins[i])
                 mocap_pos = mocap_pos.at[mocap_index].set(origin_jax)
 
-            # set endpoints
+            # Set endpoints
             for i, body_id in enumerate(endpoint_body_ids):
                 mocap_index = int(body_id - nbody + nmocap)
                 endpoint_jax = jp.asarray(endpoints[i])

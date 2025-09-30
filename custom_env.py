@@ -645,47 +645,59 @@ class Joystick(go1_base.Go1Env):
     def _get_exteroceptive(self, data: mjx.Data) -> jax.Array:
         """Get terrain height in front of the robot with multiple rays for robustness."""
         torso_pos = data.xpos[self._torso_body_id]
-        torso_rot = data.xmat[self._torso_body_id].reshape(3, 3)  # (9,) body rotation matrix to (3,3), mapping local to world
 
-        print("\n")
-        jax.debug.print("Torso position = {}", torso_pos)
+        # Extracts the torso's queaternion data
+        quaternion_data = data.xquat[self._torso_body_id]
+        w = quaternion_data[0] # rotation
+        x = quaternion_data[1] # x coord
+        y = quaternion_data[2] # y coord
+        z = quaternion_data[3] # z coord
 
-        # Cast rays in a small grid in front of the robot
+        # Convert to heading angle in the XY plane (rotation around z-axis) from its quaternion orientation
+        yaw = jp.atan2(2.0 * (w * z + x * y), 1.0 - 2.0 * (y * y + z * z))
+
+        # Define grid of virtual sensors
         offsets = jp.array([
             [1.0, 1.0],
-            [1.0, 0],
-            [1.0, -1],
-            [0, 1.0],
-            [0, 0],
-            [0, -1.0],
+            [1.0, 0.0],
+            [1.0, -1.0],
+            [0.0, 1.0],
+            [0.0, 0.0],
+            [0.0, -1.0],
             [-1.0, 1.0],
-            [-1.0, 0],
+            [-1.0, 0.0],
             [-1.0, -1.0]
         ])
 
-        # Change scale and postion of the grid
+        # Scale and position grid in relation ro robot
         scale_grid_factor = 0.2
         x_shift = 0.5
-        y_shift = 0.0
-        z_shift = 0.5
+        z_shift = 0.3
 
-        offsets = offsets*scale_grid_factor
+        # Apply scale and forward shift in the torso frame
+        local_x = offsets[:, 0] * scale_grid_factor + x_shift
+        local_y = offsets[:, 1] * scale_grid_factor
+        local_z = z_shift
 
-        # Create ray start positions
-        ray_starts = []
-        for offset in offsets:
-            start_pos = torso_pos + jp.array([offset[0]+x_shift, offset[1], z_shift])
-            jax.debug.print("Start position = {}", start_pos)
-            ray_starts.append(start_pos)
-        ray_starts = jp.array(ray_starts)
-
-        # Rotates all local points to world frame and shifts them based on torso_pos
-        ray_starts = torso_pos + ray_starts @ torso_rot.T
-
-        local_ray_dir = jp.array([0.0, 0.0, -1.0])
-        ray_dir = torso_rot @ local_ray_dir 
+        # Get 2D yaw rotation (apply to the XY plane)
+        c = jp.cos(yaw)
+        s = jp.sin(yaw)
         
-        # Batch ray cast
+        # Calculate rotated coordinates in world frame
+        world_x = c * local_x - s * local_y
+        world_y = s * local_x + c * local_y
+        world_z = torso_pos[2] + local_z
+
+        # Combine into world ray starts: torso_pos + rotated local XY, and z = torso_z + z_shift
+        ray_starts = jp.stack([
+            torso_pos[0] + world_x,
+            torso_pos[1] + world_y,
+            jp.ones_like(world_x) * world_z
+        ], axis=1)
+
+        # Ray direction: straight down in world coordinates
+        ray_dir = jp.array([0.0, 0.0, -1.0])
+
         distances, _ = ray.batch_ray(
             self._mj_model, data, ray_starts, ray_dir, (),
             True, bodyexclude=self._robot_body_ids
@@ -693,7 +705,7 @@ class Joystick(go1_base.Go1Env):
 
         mean_distance = jp.mean(distances)
         terrain_height = mean_distance - z_shift
-        
+
         return {
             "terrain_height": terrain_height,
             "distances": distances,
