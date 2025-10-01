@@ -651,10 +651,8 @@ class Joystick(go1_base.Go1Env):
             "privileged_state": privileged_state,
         }
 
-
-    def _get_exteroceptive(self, data: mjx.Data) -> jax.Array:
-        """Get terrain height in front of the robot with multiple rays for robustness."""
-        torso_pos = data.xpos[self._torso_body_id]
+    def _get_exteroceptive(self, data: mjx.Data) -> Dict:
+        """Get terrain height in front of and to the sides of the robot with multiple rays for robustness."""
 
         # Extracts the torso's queaternion data
         quaternion_data = data.xquat[self._torso_body_id]
@@ -679,20 +677,42 @@ class Joystick(go1_base.Go1Env):
             [-1.0, -1.0]
         ])
 
-        # Scale and position grid in relation ro robot
-        scale_grid_factor = 0.2
-        x_shift = 0.5
-        z_shift = 0.3
+        front_dict = self._get_grid_mean(offsets, yaw, x_shift=0.5, y_shift=0, x_scale_factor=0.3, y_scale_factor=0.5, data=data)
+        
+        mean_height_array = jp.array([
+            front_dict["terrain_height"],
+            self._get_grid_mean(offsets, yaw, x_shift=0, y_shift=0.3, x_scale_factor=0.5, y_scale_factor=0.3, data=data)['terrain_height'],
+            self._get_grid_mean(offsets, yaw, x_shift=0, y_shift=-0.3, x_scale_factor=0.5, y_scale_factor=0.3, data=data)['terrain_height'],
+        ])
 
-        # Apply scale and forward shift in the torso frame
-        local_x = offsets[:, 0] * scale_grid_factor + x_shift
-        local_y = offsets[:, 1] * scale_grid_factor
-        local_z = z_shift
+        return {
+            "terrain_height":  mean_height_array,
+            "distances": front_dict["distances"],
+            "directions": front_dict["directions"],
+            "origins": front_dict["origins"],
+        }
+
+    def _get_grid_mean(self, offsets, yaw, x_shift, y_shift, x_scale_factor, y_scale_factor, data):
+
+        torso_pos = data.xpos[self._torso_body_id]
 
         # Get 2D yaw rotation (apply to the XY plane)
         c = jp.cos(yaw)
         s = jp.sin(yaw)
-        
+
+        # Ray direction: straight down in world coordinates
+        ray_dir = jp.array([0.0, 0.0, -1.0])
+
+        # Scale and position grid in relation ro robot
+        x_scale_factor = 0.3
+        y_scale_factor = 0.6
+        z_shift = 0.3
+
+        # Apply scale and forward shift in the torso frame
+        local_x = offsets[:, 0] * x_scale_factor + x_shift
+        local_y = offsets[:, 1] * y_scale_factor + y_shift
+        local_z = z_shift
+
         # Calculate rotated coordinates in world frame
         world_x = c * local_x - s * local_y
         world_y = s * local_x + c * local_y
@@ -704,9 +724,6 @@ class Joystick(go1_base.Go1Env):
             torso_pos[1] + world_y,
             jp.ones_like(world_x) * world_z
         ], axis=1)
-
-        # Ray direction: straight down in world coordinates
-        ray_dir = jp.array([0.0, 0.0, -1.0])
 
         distances, _ = ray.batch_ray(
             self._mj_model, data, ray_starts, ray_dir, (),
@@ -722,7 +739,6 @@ class Joystick(go1_base.Go1Env):
             "directions": ray_dir,
             "origins": ray_starts,
         }
-
 
     def _get_reward(
         self,
