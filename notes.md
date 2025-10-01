@@ -1,11 +1,12 @@
 
 # TO DO
-- Exteroceptive flag is implemented, just implement the actual exteroceptive extraction method.
-- Integrate knee collision.
-- Train the models.
-- Student teacher approach.
-
+- Add noise to exteroceptive data. (DONE)
+- Integrate knee collision. (CHECK IF NECESSARY)
+- Tune the models.
+- Student teacher approach. (WORKING ON THIS...)
+ 
 In the paper (https://arxiv.org/pdf/2201.08117) they use for exteroceptive: height samples around each foot at multiple radii. In the zoom meeting that was also mentioned.
+
 
 # QUESTIONS
 
@@ -30,7 +31,6 @@ Finn: Average feet time to check if the robot lifts more its feet to climb steps
 - Set steps_per_reset to maximum 40 to reduce GPU memory usage and avoid RuntimeError: INTERNAL: cuSolver internal error.
 - Changing to 10GB GPU might also work.
 - If the above does not works switch to CPU with: ```export JAX_PLATFORM_NAME=cpu```
-- Search for 'CHECK' to find places to modify/add code.
 
 
 # USEFUL COMMANDS:

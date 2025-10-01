@@ -14,6 +14,7 @@
 # ==============================================================================
 """Joystick task for Go1."""
 
+from logging import info
 from typing import Any, Dict, Optional, Union
 
 import jax
@@ -542,7 +543,7 @@ class Joystick(go1_base.Go1Env):
         fall_termination = self.get_upvector(data)[-1] < 0.0
         return fall_termination
 
-    # CHECK: privileged state will be used for teacher-student training
+
     def _get_obs(
         self, data: mjx.Data, info: dict[str, Any]
     ) -> Dict[str, jax.Array]:
@@ -604,13 +605,6 @@ class Joystick(go1_base.Go1Env):
             info["command"],  # 3
         ])
 
-        # ------------- TO DO -------------
-        # If exteroceptive flag is set, append exteroceptive data
-        if self._exteroceptive:
-            extero_data = self._get_exteroceptive(data)["terrain_height"]
-            state = jp.hstack([state, extero_data])
-        # ---------------------------------
-
         accelerometer = self.get_accelerometer(data)
         angvel = self.get_global_angvel(data)
 
@@ -635,13 +629,29 @@ class Joystick(go1_base.Go1Env):
             info["last_knee_contact"],      # Add this for future teacher-student implementation
         ])
 
+
+         # ------------- FOR EXTEROCEPTIVE -------------
+        # If exteroceptive flag is set, append exteroceptive data
+        if self._exteroceptive:
+            terrain_height = self._get_exteroceptive(data)["terrain_height"]
+            # Add noise to terrain height NEW
+            info["rng"], noise_rng = jax.random.split(info["rng"])
+            noisy_terrain_height = (
+                terrain_height
+                + (2 * jax.random.uniform(noise_rng, shape=terrain_height.shape) - 1)
+                * self._config.noise_config.level
+                * self._config.noise_config.scales.extero
+            )
+            state = jp.hstack([state, noisy_terrain_height])
+            privileged_state = jp.hstack([privileged_state, terrain_height])
+        # ---------------------------------------------
+
         return {
             "state": state,
             "privileged_state": privileged_state,
         }
 
 
-    # ------------- TO DO -------------
     def _get_exteroceptive(self, data: mjx.Data) -> jax.Array:
         """Get terrain height in front of the robot with multiple rays for robustness."""
         torso_pos = data.xpos[self._torso_body_id]
@@ -712,7 +722,6 @@ class Joystick(go1_base.Go1Env):
             "directions": ray_dir,
             "origins": ray_starts,
         }
-    # ---------------------------------
 
 
     def _get_reward(
