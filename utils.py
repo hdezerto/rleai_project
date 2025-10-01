@@ -210,21 +210,23 @@ def render_video_during_training(current_policy, step_num, jit_step,jit_reset, e
 
 
 def evaluate_policy(
-    env,
-    jit_inference_fn,
-    jit_step,
-    jit_reset,
-    env_cfg,
-    eval_env,
+    env,                # Simulation environment
+    jit_inference_fn,   # Policy network used to compute actions from observations
+    jit_step,           # Advance environment one step
+    jit_reset,          # Reset environment
+    env_cfg,            # Environment configuration
+    eval_env,           # Evaluation environment
     velocity_kick_range: tuple = (-1.0, 1.0),
     kick_duration_range: tuple = (0.2, 1.0),
 ):
     """Evaluate the policy over multiple episodes and return average reward."""
+    # Velocity commands for the robot. Tells it to "turn", "walk forward", "walk sideways" etc
     x_vels = [0.0, 0.5, 1.0, 0.0, 0.0, 0.5]
     y_vels = [0.0, 0.0, 0.0, 0.5, 1.0, 0.5]
     yaw_vels = [1.0, 0.0, 0.0, 0.0, 0.0, 0.1]
 
     for run_id, (x_vel, y_vel, yaw_vel) in enumerate(zip(x_vels, y_vels, yaw_vels)):
+        # Function which defines a random perturbation (kick/shove) of the robot
         def sample_pert(rng):
             rng, key1, key2 = jax.random.split(rng, 3)
             pert_mag = jax.random.uniform(
@@ -252,19 +254,20 @@ def evaluate_policy(
         foot_vel = []
         rews = []
         contact = []
-        command = jp.array([x_vel, y_vel, yaw_vel])
+        command = jp.array([x_vel, y_vel, yaw_vel])     # Add the velocity commands to one vector
 
-        state = jit_reset(rng)
+        state = jit_reset(rng)      # Reset the environment
         if state.info["steps_since_last_pert"] < state.info["steps_until_next_pert"]:
             rng = sample_pert(rng)
-        state.info["command"] = command
+        state.info["command"] = command # Set the velocity commands
+        # Main simulation loop
         for _ in range(env_cfg.episode_length):
-            if state.info["steps_since_last_pert"] < state.info["steps_until_next_pert"]:
+            if state.info["steps_since_last_pert"] < state.info["steps_until_next_pert"]:   # Randomly shove the robot if conditions are met and enabled
                 rng = sample_pert(rng)
             act_rng, rng = jax.random.split(rng)
             ctrl, _ = jit_inference_fn(state.obs, act_rng)
-            state = jit_step(state, ctrl)
-            state.info["command"] = command
+            state = jit_step(state, ctrl)   # Advance simulation
+            state.info["command"] = command # Set the velocity commands
             rews.append(
                 {k: v for k, v in state.metrics.items() if k.startswith("reward/")}
             )
