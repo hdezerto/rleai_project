@@ -96,7 +96,7 @@ def main():
             # NOTE: Section for visualizing terrain height/rays
             # Calculate scanned terrain height (our values)
             scanned_terrain_height = jit_scanned_terrain_height(state.data)
-            scanned_terrain_heights.append(float(scanned_terrain_height["terrain_height"])) # Why is this done? Scrutinize!
+            scanned_terrain_heights.append(float(scanned_terrain_height["terrain_height"][0])) # Why is this done? Scrutinize!
 
             # Ray visualization logic
             # Get ray data (assumed to return dict with keys 'origins', 'directions', 'distances')
