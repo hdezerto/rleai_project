@@ -224,7 +224,8 @@ def evaluate_policy(
     x_vels = [0.0, 0.5, 1.0, 0.0, 0.0, 0.5]
     y_vels = [0.0, 0.0, 0.0, 0.5, 1.0, 0.5]
     yaw_vels = [1.0, 0.0, 0.0, 0.0, 0.0, 0.1]
-
+    all_metrics = []
+    
     for run_id, (x_vel, y_vel, yaw_vel) in enumerate(zip(x_vels, y_vels, yaw_vels)):
         # Function which defines a random perturbation (kick/shove) of the robot
         def sample_pert(rng):
@@ -245,7 +246,6 @@ def evaluate_policy(
         rng = jax.random.PRNGKey(0)
         rollout = []
         modify_scene_fns = []
-
         swing_peak = []
         rewards = []
         linvel = []
@@ -255,6 +255,12 @@ def evaluate_policy(
         rews = []
         contact = []
         command = jp.array([x_vel, y_vel, yaw_vel])     # Add the velocity commands to one vector
+
+        # Additional metrics to save
+        total_reward = []
+        linvel_deviation = []
+        torso_heights = []
+        angvel_deviation = []
 
         state = jit_reset(rng)      # Reset the environment
         if state.info["steps_since_last_pert"] < state.info["steps_until_next_pert"]:
@@ -283,6 +289,14 @@ def evaluate_policy(
                     state.info["command"], env.get_local_linvel(state.data)
                 )
             )
+            # Add other metrics
+            total_reward.append(sum(rewards[-1].values()))  # Take current step in rewards dictionary and sum
+            linvel_error = np.linalg.norm(np.array(state.info["command"][:2]) - np.array(linvel[-1][:2]))    # Get linear velocity track (not yaw)
+            linvel_deviation.append(linvel_error)
+            angvel_error = np.linalg.norm(np.array(state.info["command"][3]) - np.array(angvel[-1]))
+            angvel_deviation.append(angvel_error)
+            torso_height = state.data.xpos[env._torso_body_id, 2]   # Get height (z position) of torso
+            torso_heights.append(torso_height)
 
             feet_vel = state.data.sensordata[env._foot_linvel_sensor_adr]
             vel_xy = feet_vel[..., :2]
@@ -306,6 +320,13 @@ def evaluate_policy(
                 )
             )
 
+        metrics = {
+            "total_reward": total_reward,
+            "linear_velocity_deviation": linvel_deviation,
+            "torso_heights": torso_heights,
+            "angvel_deviation": angvel_deviation
+        }
+        all_metrics.append(metrics)
 
         render_every = 2
         fps = 1.0 / eval_env.dt / render_every
@@ -328,3 +349,4 @@ def evaluate_policy(
             modify_scene_fns=mod_fns,
         )
         media.show_video(frames, fps=fps)
+    return all_metrics
