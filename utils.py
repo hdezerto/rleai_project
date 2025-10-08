@@ -202,8 +202,6 @@ def render_video_during_training(current_policy, step_num, jit_step,jit_reset, e
             combined_frames.append(combined_frame)
         
         media.show_video(combined_frames, fps=fps)
-        video_file_name = os.path.join("videos", f"video_step_{step_num}.mp4")
-        media.write_video(video_file_name, combined_frames, fps=fps)
         
     except Exception as e:
         print(f"Failed to render video at step {step_num}: {e}")
