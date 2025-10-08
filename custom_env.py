@@ -630,11 +630,11 @@ class Joystick(go1_base.Go1Env):
         ])
 
 
-         # ------------- FOR EXTEROCEPTIVE -------------
+         # ------------- NEW for exteroceptive -------------
         # If exteroceptive flag is set, append exteroceptive data
         if self._exteroceptive:
             terrain_height = self._get_exteroceptive(data)["terrain_height"]
-            # Add noise to terrain height NEW
+            # Add noise to terrain height
             info["rng"], noise_rng = jax.random.split(info["rng"])
             noisy_terrain_height = (
                 terrain_height
@@ -644,12 +644,14 @@ class Joystick(go1_base.Go1Env):
             )
             state = jp.hstack([state, noisy_terrain_height])
             privileged_state = jp.hstack([privileged_state, terrain_height])
-        # ---------------------------------------------
+        # ---------------------------------------------------
 
         return {
             "state": state,
             "privileged_state": privileged_state,
+            "student_state": state,  # CHECK For potential future use
         }
+
 
     def _get_exteroceptive(self, data: mjx.Data) -> Dict:
         """Get terrain height in front of and to the sides of the robot with multiple rays for robustness."""
@@ -686,11 +688,12 @@ class Joystick(go1_base.Go1Env):
         ])
 
         return {
-            "terrain_height":  mean_height_array,
+            "terrain_height": mean_height_array,
             "distances": front_dict["distances"],
             "directions": front_dict["directions"],
             "origins": front_dict["origins"],
         }
+
 
     def _get_grid_mean(self, offsets, yaw, x_shift, y_shift, x_scale_factor, y_scale_factor, data):
 
@@ -739,6 +742,7 @@ class Joystick(go1_base.Go1Env):
             "directions": ray_dir,
             "origins": ray_starts,
         }
+
 
     def _get_reward(
         self,
