@@ -347,7 +347,10 @@ def evaluate_policy(
         media.show_video(frames, fps=fps)
 
         # Save evaluation videos in folder
+        name = "Proprioceptive"
+        if eval_env.exteroceptive:
+            name = "Exteroceptive"
         os.makedirs("eval_videos", exist_ok=True)   # Check if eval_videos folder exists
-        video_file_name = os.path.join("eval_videos", f"velocity_case_ID:{run_id}.mp4")
+        video_file_name = os.path.join("eval_videos", f"{name}_velocity_case_ID:{run_id}.mp4")
         media.write_video(video_file_name, frames, fps=fps)
     return all_metrics
