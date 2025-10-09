@@ -227,7 +227,11 @@ class Joystick(go1_base.Go1Env):
                     self._robot_body_ids.append(body_id)
                     break
                 current_body_id = parent_id
-
+                
+    # NOTE: Add property to allow usage outside of class
+    @property
+    def exteroceptive(self):
+        return self._exteroceptive
 
     # ========================== CHECK: Wall control methods ==========================
     # This is just an example on how to change the wall_heights online.
