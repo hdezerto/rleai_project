@@ -672,10 +672,6 @@ class Joystick(go1_base.Go1Env):
                 * self._config.noise_config.level
                 * self._config.noise_config.scales.extero
             )
-            jax.debug.print("privileged_state shape: {}", privileged_state.shape)
-            jax.debug.print("terrain_height shape: {}", terrain_height.shape)
-            jax.debug.print("noisy_terrain_height shape: {}", noisy_terrain_height.shape)
-
             privileged_state = jp.hstack([privileged_state, terrain_height])
             state = jp.hstack([state, noisy_terrain_height])
         # ---------------------------------------------------
