@@ -139,8 +139,8 @@ class Joystick(go1_base.Go1Env):
         xml_path: str = None, 
         config: config_dict.ConfigDict = default_config(),
         config_overrides: Optional[Dict[str, Union[str, int, list[Any]]]] = None,
+        # ------ New parameters ------
         total_steps: Optional[int] = None,  # New parameter for curriculum learning
-        steps_per_reset: Optional[int] = None,  # Only used for visualizing the environment
         curriculum_learning: bool = False,
         exteroceptive: bool = False,  # New flag to control exteroceptive state
     ):
@@ -156,10 +156,7 @@ class Joystick(go1_base.Go1Env):
         )
         self._reset_count = 0  # Host-side counter for number of resets (not trusted inside JIT)
         self._total_steps = total_steps  # Store total_steps for curriculum learning
-        if steps_per_reset is None:
-            self._episode_length = self._config.episode_length
-        else:
-            self._episode_length = steps_per_reset
+        self._episode_length = self._config.episode_length
         self._curriculum_learning = curriculum_learning  # If True, disables curriculum learning
         self._exteroceptive = exteroceptive  # Store exteroceptive flag
         self._post_init()  # Custom post-init to set up additional attributes
