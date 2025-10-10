@@ -345,7 +345,7 @@ class Joystick(go1_base.Go1Env):
         rng, wall_rng = jax.random.split(rng)
         reset_count = self._increment_reset_counter()
 
-        jax.debug.print("DEBUG reset: _reset_count= {}, curriculum_learning= {}", reset_count, self._curriculum_learning)
+        #jax.debug.print("DEBUG reset: _reset_count= {}, curriculum_learning= {}", reset_count, self._curriculum_learning)
 
         wall_heights, _ = self.sample_wall_heights(wall_rng, reset_count=reset_count)
 

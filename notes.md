@@ -1,3 +1,13 @@
+# Change simulation environment for curriculum learning
+
+source venv_rl/bin/activate
+python3 -m pip uninstall playground
+python3 -m pip install git+https://github.com/finnBsch/mujoco_playground.git@full_reset
+python3 -m pip uninstall mujoco-mjx
+python3 -m pip install git+https://github.com/finnBsch/mujoco.git@lab#subdirectory=mjx
+
+This allows a full reset of the environment at each episode termination, which is necessary for curriculum learning to work.
+
 
 # TO DO
 - Review _get_exteroceptive and _get_grid_mean. Should we change to a rectangle instead of a square?

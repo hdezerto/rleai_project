@@ -104,6 +104,7 @@ def _maybe_wrap_env(
       episode_length=episode_length,
       action_repeat=action_repeat,
       randomization_fn=v_randomization_fn,
+      full_reset=True, # CHECK
   )
   return env
 
