@@ -681,19 +681,31 @@ class Joystick(go1_base.Go1Env):
             [-1.0, -1.0]
         ])
 
-        front_dict = self._get_grid_mean(offsets, yaw, x_shift=0.5, y_shift=0, x_scale_factor=0.3, y_scale_factor=0.5, data=data)
+        front_dict = self._get_grid_mean(offsets, yaw, x_shift=0.5, y_shift=0, x_scale_factor=0.07, y_scale_factor=0.3, data=data)
+        left_dict = self._get_grid_mean(offsets, yaw, x_shift=-0.2, y_shift=0.3, x_scale_factor=0.15, y_scale_factor=0.07, data=data)
+        right_dict = self._get_grid_mean(offsets, yaw, x_shift=-0.2, y_shift=-0.3, x_scale_factor=0.15, y_scale_factor=0.07, data=data)
+
+        dicts = [front_dict, left_dict, right_dict]
+
+        grids_data = {}
+
+        grids_data["distances"] = jp.concatenate([d["distances"] for d in dicts], axis=0)
+
+        grids_data["origins"] = jp.vstack([d["origins"] for d in dicts])
+
+        grids_data["directions"] = dicts[0]["directions"]
         
         mean_height_array = jp.array([
             front_dict["terrain_height"],
-            self._get_grid_mean(offsets, yaw, x_shift=0, y_shift=0.3, x_scale_factor=0.5, y_scale_factor=0.3, data=data)['terrain_height'],
-            self._get_grid_mean(offsets, yaw, x_shift=0, y_shift=-0.3, x_scale_factor=0.5, y_scale_factor=0.3, data=data)['terrain_height'],
+            left_dict['terrain_height'],
+            right_dict['terrain_height'],
         ])
 
         return {
             "terrain_height":  mean_height_array,
-            "distances": front_dict["distances"],
-            "directions": front_dict["directions"],
-            "origins": front_dict["origins"],
+            "distances": grids_data["distances"],
+            "directions": grids_data["directions"],
+            "origins": grids_data["origins"],
         }
 
     def _get_grid_mean(self, offsets, yaw, x_shift, y_shift, x_scale_factor, y_scale_factor, data):
@@ -708,8 +720,6 @@ class Joystick(go1_base.Go1Env):
         ray_dir = jp.array([0.0, 0.0, -1.0])
 
         # Scale and position grid in relation ro robot
-        x_scale_factor = 0.3
-        y_scale_factor = 0.6
         z_shift = 0.3
 
         # Apply scale and forward shift in the torso frame
