@@ -744,7 +744,7 @@ class Joystick(go1_base.Go1Env):
             True, bodyexclude=self._robot_body_ids
         )
 
-        mean_distance = jp.mean(distances)
+        mean_distance = distances
         terrain_height = mean_distance - z_shift
 
         return {
