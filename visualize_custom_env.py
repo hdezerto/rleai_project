@@ -38,7 +38,7 @@ def main():
     # ----------------------------
     # NOTE: Added functionality to visualize ray casting
     # Get body ids for the mocap bodies
-    ray_count = 9
+    ray_count = 9*3
     origin_body_ids = [env._mj_model.body(f"ray_mocap_origin_{i}").id for i in range(ray_count)]
     endpoint_body_ids = [env._mj_model.body(f"ray_mocap_endpoint_{i}").id for i in range(ray_count)]
 
@@ -101,12 +101,13 @@ def main():
             # Ray visualization logic
             # Get ray data (assumed to return dict with keys 'origins', 'directions', 'distances')
             ray_data = scanned_terrain_height
-            origins = np.array(ray_data["origins"])  # shape (9, 3)
-            directions = np.array(ray_data["directions"])  # shape (9, 3)
-            distances = np.array(ray_data["distances"])  # shape (9,)
+            origins = np.array(ray_data["origins"])
+            directions = np.array(ray_data["directions"])
+            distances = np.array(ray_data["distances"])
+            
             endpoints = origins + directions * distances[:, None]
 
-            mocap_pos = state.data.mocap_pos  # jax array
+            mocap_pos = state.data.mocap_pos
 
             # Set origins
             for i, body_id in enumerate(origin_body_ids):
