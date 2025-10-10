@@ -677,7 +677,7 @@ class Joystick(go1_base.Go1Env):
             [-1.0, -1.0]
         ])
 
-        front_dict = self._get_grid_mean(offsets, yaw, x_shift=0.5, y_shift=0, x_scale_factor=0.07, y_scale_factor=0.15, data=data)
+        front_dict = self._get_grid_mean(offsets, yaw, x_shift=0.5, y_shift=0, x_scale_factor=0.07, y_scale_factor=0.3, data=data)
         left_dict = self._get_grid_mean(offsets, yaw, x_shift=-0.2, y_shift=0.3, x_scale_factor=0.15, y_scale_factor=0.07, data=data)
         right_dict = self._get_grid_mean(offsets, yaw, x_shift=-0.2, y_shift=-0.3, x_scale_factor=0.15, y_scale_factor=0.07, data=data)
 
