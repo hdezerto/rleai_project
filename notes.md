@@ -16,7 +16,9 @@ In the paper (https://arxiv.org/pdf/2201.08117) they use for exteroceptive: heig
 
 # QUESTIONS
 
+- Is the knee collision implemented? Should we keep it?
 - Check the weight for feet_clearance in the proprioceptive training.
+- I see prints in the step function but not in the reset function.
 
 
 # NOTES

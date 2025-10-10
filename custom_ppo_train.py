@@ -198,6 +198,7 @@ def train(
       key_env,
       wrap_env_fn,
       randomization_fn,
+      
   )
 
   reset_fn = jax.jit(env.reset)
@@ -425,8 +426,8 @@ def train(
           (state, key_generate_unroll),
           (),
           length=batch_size * num_minibatches // num_envs,
-      )
-    
+      )    
+
     data = jax.tree_util.tree_map(lambda x: jnp.swapaxes(x, 1, 2), data)
     data = jax.tree_util.tree_map(
         lambda x: jnp.reshape(x, (-1,) + x.shape[2:]), data
