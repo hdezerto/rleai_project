@@ -141,6 +141,7 @@ class Joystick(go1_base.Go1Env):
         config_overrides: Optional[Dict[str, Union[str, int, list[Any]]]] = None,
         # ------ New parameters ------
         total_steps: Optional[int] = None,  # New parameter for curriculum learning
+        steps_per_reset: Optional[int] = None,  # NOTE: ADDED BACK, Only used for visualizing the environment
         curriculum_learning: bool = False,
         exteroceptive: bool = False,  # New flag to control exteroceptive state
     ):
@@ -156,6 +157,11 @@ class Joystick(go1_base.Go1Env):
         )
         self._reset_count = 0  # Host-side counter for number of resets (not trusted inside JIT)
         self._total_steps = total_steps  # Store total_steps for curriculum learning
+        # NOTE: ADDED BACK, necessary for visualization
+        if steps_per_reset is None:
+            self._episode_length = self._config.episode_length
+        else:
+            self._episode_length = steps_per_reset
         self._episode_length = self._config.episode_length
         self._curriculum_learning = curriculum_learning  # If True, disables curriculum learning
         self._exteroceptive = exteroceptive  # Store exteroceptive flag
@@ -666,8 +672,12 @@ class Joystick(go1_base.Go1Env):
                 * self._config.noise_config.level
                 * self._config.noise_config.scales.extero
             )
-            state = jp.hstack([state, noisy_terrain_height])
+            jax.debug.print("privileged_state shape: {}", privileged_state.shape)
+            jax.debug.print("terrain_height shape: {}", terrain_height.shape)
+            jax.debug.print("noisy_terrain_height shape: {}", noisy_terrain_height.shape)
+
             privileged_state = jp.hstack([privileged_state, terrain_height])
+            state = jp.hstack([state, noisy_terrain_height])
         # ---------------------------------------------------
 
         return {
@@ -716,15 +726,15 @@ class Joystick(go1_base.Go1Env):
         grids_data["origins"] = jp.vstack([d["origins"] for d in dicts])
 
         grids_data["directions"] = dicts[0]["directions"]
-        
-        mean_height_array = jp.array([
+
+        mean_height_array = jp.hstack([
             front_dict["terrain_height"],
-            left_dict['terrain_height'],
-            right_dict['terrain_height'],
+            left_dict["terrain_height"],
+            right_dict["terrain_height"],
         ])
 
         return {
-            "terrain_height":  mean_height_array,
+            "terrain_height": mean_height_array,
             "distances": grids_data["distances"],
             "directions": grids_data["directions"],
             "origins": grids_data["origins"],
