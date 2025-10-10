@@ -238,6 +238,7 @@ def evaluate_policy(
     x_vels = [0.0, 0.5, 1.0, 0.0, 0.0, 0.5]
     y_vels = [0.0, 0.0, 0.0, 0.5, 1.0, 0.5]
     yaw_vels = [1.0, 0.0, 0.0, 0.0, 0.0, 0.1]
+    all_metrics = []
 
     for run_id, (x_vel, y_vel, yaw_vel) in enumerate(zip(x_vels, y_vels, yaw_vels)):
         # Function which defines a random perturbation (kick/shove) of the robot
@@ -281,6 +282,12 @@ def evaluate_policy(
             carry = jit_inference_fn.init_carry(batch_size=1, key=rng)
         # -------------------
         
+        # Additional metrics to save
+        total_reward = []
+        linvel_deviation = []
+        torso_heights = []
+        angvel_deviation = []
+
         # Main simulation loop
         for _ in range(env_cfg.episode_length):
             if state.info["steps_since_last_pert"] < state.info["steps_until_next_pert"]:   # Randomly shove the robot if conditions are met and enabled
@@ -311,6 +318,14 @@ def evaluate_policy(
                     state.info["command"], env.get_local_linvel(state.data)
                 )
             )
+            # Add other metrics
+            total_reward.append(sum(rewards[-1].values()))  # Take current step in rewards dictionary and sum
+            linvel_error = np.linalg.norm(np.array(state.info["command"][:2]) - np.array(linvel[-1][:2]))    # Get linear velocity track (not yaw)
+            linvel_deviation.append(linvel_error)
+            angvel_error = np.linalg.norm(np.array(state.info["command"][3]) - np.array(angvel[-1]))
+            angvel_deviation.append(angvel_error)
+            torso_height = state.data.xpos[env._torso_body_id, 2]   # Get height (z position) of torso
+            torso_heights.append(torso_height)
 
             feet_vel = state.data.sensordata[env._foot_linvel_sensor_adr]
             vel_xy = feet_vel[..., :2]
@@ -333,7 +348,13 @@ def evaluate_policy(
                     / env_cfg.command_config.a[0],
                 )
             )
-
+        metrics = {
+            "total_reward": total_reward,
+            "linear_velocity_deviation": linvel_deviation,
+            "torso_heights": torso_heights,
+            "angvel_deviation": angvel_deviation
+        }
+        all_metrics.append(metrics)
 
         render_every = 2
         fps = 1.0 / eval_env.dt / render_every
@@ -356,3 +377,12 @@ def evaluate_policy(
             modify_scene_fns=mod_fns,
         )
         media.show_video(frames, fps=fps)
+
+        # Save evaluation videos in folder
+        name = "Proprioceptive"
+        if eval_env.exteroceptive:
+            name = "Exteroceptive"
+        os.makedirs("eval_videos", exist_ok=True)   # Check if eval_videos folder exists
+        video_file_name = os.path.join("eval_videos", f"{name}_velocity_case_ID:{run_id}.mp4")
+        media.write_video(video_file_name, frames, fps=fps)
+    return all_metrics
