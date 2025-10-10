@@ -44,7 +44,7 @@ import jax.numpy as jnp
 import numpy as np
 import optax
 
-# from
+from ppo_gru_networks import GRUPolicyMLP, make_ppo_gru_networks, generate_gru_unroll, make_gru_policy, make_gru_policy_fn # NEW
 
 
 InferenceParams = Tuple[running_statistics.NestedMeanStd, Params]
@@ -163,7 +163,11 @@ def train(
     save_checkpoint_path: Optional[str] = None,
     run_evals: bool = True,
     # custom ppo lf
-    compute_custom_ppo_loss_fn = None
+    compute_custom_ppo_loss_fn = None,
+    # -------------- NEW for teacher-student ----------------
+    mode: str = "default", # "default", "student", "teacher"
+    teacher_policy_fn: Optional[Callable] = None,
+    # ------------------------------------------------------
 ):
   """PPO training on a single device."""
   assert batch_size * num_minibatches % num_envs == 0
@@ -194,6 +198,7 @@ def train(
       key_env,
       wrap_env_fn,
       randomization_fn,
+      
   )
 
   reset_fn = jax.jit(env.reset)
@@ -201,15 +206,94 @@ def train(
   key_envs = jax.random.split(key_env, num_envs)
   env_state = reset_fn(key_envs)
   obs_shape = jax.tree_util.tree_map(lambda x: x.shape[1:], env_state.obs)
-  print(obs_shape)
+  print("obs_shape:", obs_shape)
   normalize = lambda x, y: x
   if normalize_observations:
     normalize = running_statistics.normalize
+  
+  # -------------- NEW for teacher-student ----------------
+  # # Compute sizes for slice indexing (alphabetical order: privileged_state, state, student_state)
+  # privileged_size = obs_shape['privileged_state'][0]
+  # state_size = obs_shape['state'][0]
+  # student_size = obs_shape['student_state'][0]
+  # # Compute start/end indices for each field in the flattened observation
+  # idx_privileged_start = 0
+  # idx_privileged_end = privileged_size
+  # idx_state_start = idx_privileged_end
+  # idx_state_end = idx_state_start + state_size
+  # idx_student_start = idx_state_end
+  # idx_student_end = idx_student_start + student_size
 
-  ppo_network = network_factory(
-      obs_shape, env.action_size, preprocess_observations_fn=normalize
-  )
-  make_policy = ppo_networks.make_inference_fn(ppo_network)
+  # def flatten_obs(obs):
+  #     """Recursively flattens a dict of arrays into a single array."""
+  #     if isinstance(obs, dict):
+  #         # Sort keys for deterministic order
+  #         return jnp.concatenate([flatten_obs(obs[k]) for k in sorted(obs.keys())], axis=-1)
+  #     return obs
+
+  def select_obs(obs, *args, **kwargs):
+      if isinstance(obs, dict):
+          if mode == "teacher":
+              arr = obs["privileged_state"]
+          elif mode == "student":
+              arr = obs["student_state"]
+          else:
+              arr = obs["state"]
+          #arr = flatten_obs(arr)
+          return arr
+      else:
+        print("DEBUG Warning: obs is not a dict, cannot select based on mode. Returning original obs.")
+        return obs  # If already an array, just return it
+         
+      # # If obs is already an array, use slicing
+      # if mode == "teacher":
+      #     return obs[..., idx_privileged_start:idx_privileged_end]
+      # elif mode == "student":
+      #     return obs[..., idx_student_start:idx_student_end]
+      # else:
+      #     return obs[..., idx_state_start:idx_state_end]
+  
+  # Normalization:
+  def preprocess(obs, *args, **kwargs):
+      selected = select_obs(obs, *args, **kwargs)
+      # if selected is None:
+      #     return None
+      return normalize(selected, *args, **kwargs)
+    
+  # Select GRU for student, MLP for teacher/default
+  # ----- FIX THE STUDENT WITH THE SAME LOGIC BELOW!!!!
+  if mode == "student":
+      ppo_network = make_ppo_gru_networks(obs_shape['student_state'], env.action_size, preprocess_observations_fn=preprocess)
+      make_policy = make_gru_policy_fn(
+          policy_network=ppo_network.policy_network,
+          value_network=ppo_network.value_network,
+          preprocess_observations_fn=preprocess, 
+      )
+  elif mode == "teacher":
+      ppo_network = network_factory(
+          {'privileged_state': obs_shape['privileged_state']},
+          env.action_size,
+          preprocess_observations_fn=normalize,
+          policy_obs_key="privileged_state",
+          value_obs_key="privileged_state"
+      )
+      make_policy = ppo_networks.make_inference_fn(ppo_network)
+  else:  # default (proprioceptive or exteroceptive notebooks)
+      ppo_network = network_factory(
+          {'state': obs_shape['state']},
+          env.action_size,
+          preprocess_observations_fn=normalize,
+          policy_obs_key="state",
+          value_obs_key="state"
+      )
+      make_policy = ppo_networks.make_inference_fn(ppo_network)
+  # ------------------------------------------------------
+
+  # ppo_network = network_factory(
+  #     obs_shape, env.action_size, preprocess_observations_fn=normalize
+  # )
+
+  # make_policy = ppo_networks.make_inference_fn(ppo_network)
 
   optimizer = optax.adam(learning_rate=learning_rate)
   if max_grad_norm is not None:
@@ -284,31 +368,66 @@ def train(
     training_state, state, key = carry
     key_sgd, key_generate_unroll, new_key = jax.random.split(key, 3)
 
-    policy = make_policy((
+
+    # -------------- NEW for teacher-student ----------------
+    if mode == "student":
+      # Use the GRU policy wrapper
+      policy = make_policy((
+          training_state.normalizer_params,
+          training_state.params.policy,
+          training_state.params.value,
+      ), deterministic=False)
+      carry = policy.init_carry(num_envs, key_generate_unroll) # Initialize the GRU carry
+
+      def f(carry_tuple, unused_t):
+          current_state, current_carry, current_key = carry_tuple
+          current_key, next_key = jax.random.split(current_key)
+          next_state, next_carry, data = generate_gru_unroll(
+              env,
+              current_state,
+              policy,
+              current_carry,
+              current_key,
+              unroll_length,
+              teacher_policy_fn,
+        # Request only fields that are guaranteed to exist on State
+        extra_fields=('episode_metrics', 'episode_done'),
+          )
+          return (next_state, next_carry, next_key), data
+      # Initial carry for all envs
+      (state, carry, _), data = jax.lax.scan(
+          f,
+          (state, carry, key_generate_unroll),
+          (),
+          length=batch_size * num_minibatches // num_envs,
+      )
+    # ------------------------------------------------------
+    else:
+      policy = make_policy((
         training_state.normalizer_params,
         training_state.params.policy,
         training_state.params.value,
-    ))
+      ))
+      def f(carry, unused_t):
+        current_state, current_key = carry
+        current_key, next_key = jax.random.split(current_key)
+        next_state, data = acting.generate_unroll(
+            env,
+            current_state,
+            policy,
+            current_key,
+            unroll_length,
+            extra_fields=('truncation', 'episode_metrics', 'episode_done'),
+        )
+        return (next_state, next_key), data
 
-    def f(carry, unused_t):
-      current_state, current_key = carry
-      current_key, next_key = jax.random.split(current_key)
-      next_state, data = acting.generate_unroll(
-          env,
-          current_state,
-          policy,
-          current_key,
-          unroll_length,
-          extra_fields=('truncation', 'episode_metrics', 'episode_done'),
-      )
-      return (next_state, next_key), data
+      (state, _), data = jax.lax.scan(
+          f,
+          (state, key_generate_unroll),
+          (),
+          length=batch_size * num_minibatches // num_envs,
+      )    
 
-    (state, _), data = jax.lax.scan(
-        f,
-        (state, key_generate_unroll),
-        (),
-        length=batch_size * num_minibatches // num_envs,
-    )
     data = jax.tree_util.tree_map(lambda x: jnp.swapaxes(x, 1, 2), data)
     data = jax.tree_util.tree_map(
         lambda x: jnp.reshape(x, (-1,) + x.shape[2:]), data
@@ -321,9 +440,19 @@ def train(
           data.extras['state_extras']['episode_done'],
       )
 
+    # -------------- NEW for teacher-student ----------------
+    # Update normalizer with the structure it was initialized with
+    if mode == "student":
+      # In student mode we normalize only the student_state flattened array
+      obs_for_norm = select_obs(data.observation)
+    else:
+      obs_for_norm = _remove_pixels(data.observation)
+    # ------------------------------------------------------
+
+    
     normalizer_params = running_statistics.update(
         training_state.normalizer_params,
-        _remove_pixels(data.observation),
+        obs_for_norm,
     )
 
     (optimizer_state, params, _), metrics = jax.lax.scan(
@@ -359,22 +488,68 @@ def train(
 
   jit_training_epoch = jax.jit(training_epoch)
 
+  # -------------- NEW for teacher-student ----------------
+  if mode == "student":
+      # Compute obs_size as the student observation size
+      obs_size = student_size
+      dummy_obs = jnp.zeros((1, obs_size), dtype=jnp.float32)
+      # Set hidden_size to match your GRUPolicyMLP hidden size
+      hidden_size = 128 
+      from flax import linen as nn
+      dummy_carry = nn.GRUCell(hidden_size).initialize_carry(jax.random.PRNGKey(0), (1,))
+      policy_params = ppo_network.policy_network.init(key_policy, dummy_obs, dummy_carry)
+  else: # default or teacher
+      policy_params = ppo_network.policy_network.init(key_policy)
+
   init_params = ppo_losses.PPONetworkParams(
-      policy=ppo_network.policy_network.init(key_policy),
+      policy=policy_params,
       value=ppo_network.value_network.init(key_value),
   )
-  obs_shape = jax.tree_util.tree_map(
-      lambda x: specs.Array(x.shape[-1:], jnp.dtype('float32')), env_state.obs
-  )
+  # ------------------------------------------------------
+
+  # init_params = ppo_losses.PPONetworkParams(
+  #     policy=ppo_network.policy_network.init(key_policy),
+  #     value=ppo_network.value_network.init(key_value),
+  # )
+
+   # -------------- NEW for teacher-student ----------------
+
+  if mode == "student":
+    # Initialize a flat normalizer for student observations
+    normalizer_init_obs = specs.Array(
+        env_state.obs["student_state"].shape[-1:], jnp.dtype('float32')
+    )
+  else:
+    obs_shape_spec = jax.tree_util.tree_map(
+        lambda x: specs.Array(x.shape[-1:], jnp.dtype('float32')), env_state.obs
+    )
+    normalizer_init_obs = _remove_pixels(obs_shape_spec)
+
 
   training_state = TrainingState(
       optimizer_state=optimizer.init(init_params),
       params=init_params,
       normalizer_params=running_statistics.init_state(
-          _remove_pixels(obs_shape)
+          normalizer_init_obs
       ),
       env_steps=0,
   )
+
+  # ------------------------------------------------------
+
+
+  # obs_shape = jax.tree_util.tree_map(
+  #     lambda x: specs.Array(x.shape[-1:], jnp.dtype('float32')), env_state.obs
+  # )
+
+  # training_state = TrainingState(
+  #     optimizer_state=optimizer.init(init_params),
+  #     params=init_params,
+  #     normalizer_params=running_statistics.init_state(
+  #         _remove_pixels(obs_shape)
+  #     ),
+  #     env_steps=0,
+  # )
 
   if num_timesteps == 0:
     return (make_policy, (training_state.normalizer_params, training_state.params.policy, training_state.params.value), {},)
@@ -401,13 +576,41 @@ def train(
   training_walltime = 0
   current_step = 0
   metrics = {}
+
+  # -------------- NEW for teacher-student ----------------
   if num_evals > 1 and run_evals:
-    metrics = evaluator.run_evaluation(
-        (training_state.normalizer_params, training_state.params.policy, training_state.params.value),
-        training_metrics={},
-    )
-    logging.info(metrics)
-    progress_fn(0, metrics)
+    if mode == "student":
+        from ppo_gru_networks import gru_evaluator
+        # Build the GRU policy with carry
+        policy = make_policy((training_state.normalizer_params, training_state.params.policy, training_state.params.value), deterministic=True)
+        metrics = gru_evaluator(
+            eval_env,
+            policy,
+            training_state.params.policy,
+            training_state.normalizer_params,
+            preprocess,  # or whatever your preprocess_observations_fn is
+            episode_length,
+            eval_key,
+            num_eval_envs=num_eval_envs,
+        )
+        logging.info(metrics)
+        progress_fn(0, metrics)
+    else:
+        metrics = evaluator.run_evaluation(
+            (training_state.normalizer_params, training_state.params.policy, training_state.params.value),
+            training_metrics={},
+        )
+        logging.info(metrics)
+        progress_fn(0, metrics)
+  # ------------------------------------------------------
+
+  # if num_evals > 1 and run_evals:
+  #   metrics = evaluator.run_evaluation(
+  #       (training_state.normalizer_params, training_state.params.policy, training_state.params.value),
+  #       training_metrics={},
+  #   )
+  #   logging.info(metrics)
+  #   progress_fn(0, metrics)
 
   params = (training_state.normalizer_params, training_state.params.policy, training_state.params.value)
   policy_params_fn(current_step, make_policy, params)

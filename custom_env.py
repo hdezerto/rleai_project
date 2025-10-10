@@ -24,6 +24,7 @@ from mujoco import mjx
 from mujoco.mjx._src import ray
 from mujoco.mjx._src import math
 import numpy as np
+from jax.experimental import io_callback
 
 from mujoco_playground._src import mjx_env
 from mujoco_playground._src.locomotion.go1 import base as go1_base
@@ -140,7 +141,7 @@ class Joystick(go1_base.Go1Env):
         config_overrides: Optional[Dict[str, Union[str, int, list[Any]]]] = None,
         total_steps: Optional[int] = None,  # New parameter for curriculum learning
         steps_per_reset: Optional[int] = None,  # Only used for visualizing the environment
-        evaluation: bool = False,  # If True, disables curriculum learning. Optional
+        curriculum_learning: bool = False,
         exteroceptive: bool = False,  # New flag to control exteroceptive state
     ):
         if xml_path is None:
@@ -153,15 +154,16 @@ class Joystick(go1_base.Go1Env):
             config=config,
             config_overrides=config_overrides,
         )
-        self._reset_count = 0  # Counter for number of resets, useful for curriculum learning
-        self._total_steps = total_steps # Store total_steps for curriculum learning
+        self._reset_count = 0  # Host-side counter for number of resets (not trusted inside JIT)
+        self._total_steps = total_steps  # Store total_steps for curriculum learning
         if steps_per_reset is None:
             self._episode_length = self._config.episode_length
         else:
             self._episode_length = steps_per_reset
-        self._evaluation = evaluation  # If True, disables curriculum learning
+        self._curriculum_learning = curriculum_learning  # If True, disables curriculum learning
         self._exteroceptive = exteroceptive  # Store exteroceptive flag
-        self._post_init() # Custom post-init to set up additional attributes
+        self._post_init()  # Custom post-init to set up additional attributes
+
 
     def _post_init(self) -> None:
         self._init_q = jp.array(self._mj_model.keyframe("home").qpos)
@@ -257,7 +259,7 @@ class Joystick(go1_base.Go1Env):
     # def sample_wall_heights_deterministic(self, range_min=0.2, range_max=0.4):
     #     """Deterministically set all wall heights to the current curriculum value (no randomness), or fixed for evaluation."""
     #     num_walls = len(self._wall_geom_ids)
-    #     if getattr(self, '_evaluation', False):
+    #     if getattr(self, '_curriculum_learning', False):
     #         wall_heights = jp.ones((num_walls,)) * range_max
     #     else:
     #         current_step = self._reset_count * self._config.episode_length
@@ -267,17 +269,18 @@ class Joystick(go1_base.Go1Env):
     #     return wall_heights
 
     # Curriculum learning: wall heights sampled every reset, up to range_max at total_steps
-    def sample_wall_heights(self, rng, range_min=0.05, range_max=0.09):
-        """Sample random wall heights with curriculum learning or fixed for evaluation."""
+    def sample_wall_heights(self, rng, range_min=0.03, range_max=0.06, reset_count: Optional[jax.Array] = None):
         num_walls = len(self._wall_geom_ids)
-        if getattr(self, '_evaluation', False):
-            # Evaluation mode: use fixed wall height
+        if not getattr(self, '_curriculum_learning', False):
+            # Use fixed wall height
             wall_heights = jp.ones((num_walls,)) * range_max
             return wall_heights, rng
         else:
             # Curriculum: sample upper value between range_min and range_max
-            current_step = self._reset_count * self._episode_length
-            progress = min(current_step / self._total_steps, 1.0)
+            total_steps = self._total_steps
+            total_steps = jp.maximum(total_steps, 1.0)
+            current_step = reset_count * self._episode_length # Not accurate, just an estimate if the episode runs to the end
+            progress = jp.clip(current_step / self._total_steps, 0.0, 1.0)
             max_wall_height = range_min + (range_max - range_min) * progress
             rng, height_key = jax.random.split(rng)
             wall_heights = jax.random.uniform(
@@ -287,6 +290,7 @@ class Joystick(go1_base.Go1Env):
                 maxval=max_wall_height
             )
             return wall_heights, rng
+
 
     def set_wall_mocap_positions(self, data, wall_heights):
         """Set wall positions using mocap control."""
@@ -301,11 +305,25 @@ class Joystick(go1_base.Go1Env):
             new_mocap_pos = new_mocap_pos.at[mocap_id].set(new_pos)
 
         return data.replace(mocap_pos=new_mocap_pos)
+    
+
+    def _increment_reset_counter(self) -> jax.Array:
+        def _inc_host(_):
+            # Increment host-side counter and return it as a NumPy scalar/array
+            self._reset_count += 1
+            import numpy as _np
+            return _np.int32(self._reset_count)
+
+        # io_callback signature: io_callback(callback, result_shape_dtypes, *args)
+        return io_callback(
+            _inc_host,
+            jax.ShapeDtypeStruct((), jp.int32),
+            jp.array(0, dtype=jp.int32),
+        )
     # ==========================================================================
 
-
-
     def reset(self, rng: jax.Array) -> mjx_env.State:
+
         qpos = self._init_q # Start from default "home" joint positions
         qvel = jp.zeros(self.mjx_model.nv) # Start from zero velocity
 
@@ -320,10 +338,13 @@ class Joystick(go1_base.Go1Env):
         new_quat = math.quat_mul(qpos[3:7], quat)
         qpos = qpos.at[3:7].set(new_quat)
 
-        # Sample wall heights for this episode
-        self._reset_count += 1 # Increment reset counter for curriculum learning
+        # Sample wall heights for this episode using a runtime (JIT-visible) counter
         rng, wall_rng = jax.random.split(rng)
-        wall_heights, _ = self.sample_wall_heights(wall_rng)
+        reset_count = self._increment_reset_counter()
+
+        jax.debug.print("DEBUG reset: _reset_count= {}, curriculum_learning= {}", reset_count, self._curriculum_learning)
+
+        wall_heights, _ = self.sample_wall_heights(wall_rng, reset_count=reset_count)
 
         # d(xyzrpy)=U(-0.5, 0.5)
         rng, key = jax.random.split(rng)
@@ -421,6 +442,8 @@ class Joystick(go1_base.Go1Env):
 
 
     def step(self, state: mjx_env.State, action: jax.Array) -> mjx_env.State:
+
+        #jax.debug.print("DEBUG step: _reset_count= {}, curriculum_learning= {}", self._reset_count, self._curriculum_learning)
 
         # Apply perturbation if enabled
         if self._config.pert_config.enable:
@@ -634,11 +657,11 @@ class Joystick(go1_base.Go1Env):
         ])
 
 
-         # ------------- FOR EXTEROCEPTIVE -------------
+         # ------------- NEW for exteroceptive -------------
         # If exteroceptive flag is set, append exteroceptive data
         if self._exteroceptive:
             terrain_height = self._get_exteroceptive(data)["terrain_height"]
-            # Add noise to terrain height NEW
+            # Add noise to terrain height
             info["rng"], noise_rng = jax.random.split(info["rng"])
             noisy_terrain_height = (
                 terrain_height
@@ -648,12 +671,14 @@ class Joystick(go1_base.Go1Env):
             )
             state = jp.hstack([state, noisy_terrain_height])
             privileged_state = jp.hstack([privileged_state, terrain_height])
-        # ---------------------------------------------
+        # ---------------------------------------------------
 
         return {
             "state": state,
             "privileged_state": privileged_state,
+            "student_state": state,  # CHECK For potential future use
         }
+
 
     def _get_exteroceptive(self, data: mjx.Data) -> Dict:
         """Get terrain height in front of and to the sides of the robot with multiple rays for robustness."""
@@ -708,6 +733,7 @@ class Joystick(go1_base.Go1Env):
             "origins": grids_data["origins"],
         }
 
+
     def _get_grid_mean(self, offsets, yaw, x_shift, y_shift, x_scale_factor, y_scale_factor, data):
 
         torso_pos = data.xpos[self._torso_body_id]
@@ -753,6 +779,7 @@ class Joystick(go1_base.Go1Env):
             "directions": ray_dir,
             "origins": ray_starts,
         }
+
 
     def _get_reward(
         self,

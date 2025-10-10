@@ -27,10 +27,22 @@ def render_video_during_training(current_policy, step_num, jit_step,jit_reset, e
         state.info["command"] = command
         
         rollout_length = min(160, env_cfg.episode_length)
+
+        # --- GRU support ---
+        is_gru = hasattr(current_policy, "init_carry")
+        if is_gru:
+            carry = current_policy.init_carry(batch_size=1, key=rng)
+        # -------------------
         
         for _ in range(rollout_length):
             act_rng, rng = jax.random.split(rng)
-            ctrl, _ = jit_inference_fn(state.obs, act_rng)
+            # --- GRU support ---
+            if is_gru:
+                ctrl, carry, _ = current_policy(state.obs, carry, act_rng)
+            # -------------------
+            else:
+                ctrl, _ = jit_inference_fn(state.obs, act_rng)
+            
             state = jit_step(state, ctrl)
             state.info["command"] = command
             rollout.append(state)
@@ -205,6 +217,8 @@ def render_video_during_training(current_policy, step_num, jit_step,jit_reset, e
         print(f"Failed to render video at step {step_num}: {e}")
 
 
+
+
 def evaluate_policy(
     env,                # Simulation environment
     jit_inference_fn,   # Policy network used to compute actions from observations
@@ -262,12 +276,26 @@ def evaluate_policy(
         if state.info["steps_since_last_pert"] < state.info["steps_until_next_pert"]:
             rng = sample_pert(rng)
         state.info["command"] = command # Set the velocity commands
+        
+        # --- GRU support ---
+        is_gru = hasattr(jit_inference_fn, "init_carry")
+        if is_gru:
+            carry = jit_inference_fn.init_carry(batch_size=1, key=rng)
+        # -------------------
+        
         # Main simulation loop
         for _ in range(env_cfg.episode_length):
             if state.info["steps_since_last_pert"] < state.info["steps_until_next_pert"]:   # Randomly shove the robot if conditions are met and enabled
                 rng = sample_pert(rng)
             act_rng, rng = jax.random.split(rng)
-            ctrl, _ = jit_inference_fn(state.obs, act_rng)
+            
+            # --- GRU support ---
+            if is_gru:
+                ctrl, carry, _ = jit_inference_fn(state.obs, carry, act_rng)
+            # -------------------
+            else:
+                ctrl, _ = jit_inference_fn(state.obs, act_rng)
+
             state = jit_step(state, ctrl)   # Advance simulation
             state.info["command"] = command # Set the velocity commands
             rews.append(

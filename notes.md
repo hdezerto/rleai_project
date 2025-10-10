@@ -1,30 +1,24 @@
 
 # TO DO
-- Add noise to exteroceptive data. (DONE)
+- Review _get_exteroceptive and _get_grid_mean. Should we change to a rectangle instead of a square?
+- I think we should change to raw points instead of mean. This allows the robot to identify where the edge of the step is.
 - Integrate knee collision. (CHECK IF NECESSARY)
 - Tune the models.
 - Student teacher approach. (WORKING ON THIS...)
+
+Grade C: Use 3 grids (front and to the sides) for exteroceptive input.
+Teacher: Use the same 3 grids, noise-free (privileged information).
+Student: Use only the front grid, with noise (realistic/limited information).
+
  
 In the paper (https://arxiv.org/pdf/2201.08117) they use for exteroceptive: height samples around each foot at multiple radii. In the zoom meeting that was also mentioned.
 
 
 # QUESTIONS
 
-- How to compare performance? Just visualize the gifs?
-Finn: Average feet time to check if the robot lifts more its feet to climb steps.
-
-- Should sample_wall_heights use uniform sampling (increasing upper bound), deterministic linear increase, or increase when the reward increases (the robot's performance improves)?
-
-- For evaluation, should the wall height be fixed or increase? Now it's using the max height (fixed).
-
-- Check the perturbation code in the evaluation cell.
-
+- Is the knee collision implemented? Should we keep it?
 - Check the weight for feet_clearance in the proprioceptive training.
-
-- Check if this is the right approach:
-	- Grade E/C: compare proprioceptive vs exteroceptive both trained with noisy/partial info.
-	- Grade A: train teacher with noise-FREE/priviledge info, use it to train student with noisy/partial info. Compare this student with a policy trained directly with noisy/partial info (same exteroceptive policy trained in Grade E/C, right?)
-(this is what the current code implements)
+- I see prints in the step function but not in the reset function.
 
 
 # NOTES
@@ -33,32 +27,12 @@ Finn: Average feet time to check if the robot lifts more its feet to climb steps
 - If the above does not works switch to CPU with: ```export JAX_PLATFORM_NAME=cpu```
 
 
+Original repo link: https://github.com/finnBsch/eai2025_rl_final
+
 # USEFUL COMMANDS:
 - `deactivate` to exit the virtual environment. 
 - `watch -n 1 nvidia-smi` to monitor GPU usage in real-time (run in a separate terminal).
 
-
-
----
-## Grade E:
-
-- Implement simulated height map sensors for the robot to sense obstacles.
-	I think here the height map should be in the robot's reference frame (body frame).
-- Integrate this sensor data into the RL training loop (building on Lab 1).
-
-## Grade C:
-
-- Train the policy with the new sensor data.
-- Demonstrate that the policy changes its behavior when encountering obstacles (e.g., adapts gait or maneuvers differently).
-
-
-## Grade A:
-
-- Implement a teacher-student learning approach (as in the referenced paper):
-	- The teacher is trained with privileged (full, noise-free) information.
-	- The student is trained to mimic the teacher but only has access to noisy or partial information (more realistic for real-world deployment).
-
-- Compare the student’s performance to a policy trained directly with noisy/partial information, highlighting the challenges of sim-to-real transfer.
 
 
 
