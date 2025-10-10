@@ -265,16 +265,7 @@ class Joystick(go1_base.Go1Env):
     #     return wall_heights
 
     # Curriculum learning: wall heights sampled every reset, up to range_max at total_steps
-    def sample_wall_heights(self, rng, range_min=0.05, range_max=0.09, episode_count: Optional[jax.Array] = None):
-        """Sample random wall heights with curriculum learning or fixed for evaluation.
-
-        Args:
-            rng: JAX PRNGKey.
-            range_min: minimum wall height.
-            range_max: maximum wall height when curriculum completes.
-            episode_count: optional JAX scalar with the number of completed episodes/resets.
-                If provided, this is used for progress computation inside JIT.
-        """
+    def sample_wall_heights(self, rng, range_min=0.03, range_max=0.06, reset_count: Optional[jax.Array] = None):
         num_walls = len(self._wall_geom_ids)
         if not getattr(self, '_curriculum_learning', False):
             # Use fixed wall height
@@ -282,12 +273,10 @@ class Joystick(go1_base.Go1Env):
             return wall_heights, rng
         else:
             # Curriculum: sample upper value between range_min and range_max
-            # Prefer runtime episode_count if provided (safe for JIT); fall back to host counter
-            current_episodes = episode_count
             total_steps = self._total_steps
             total_steps = jp.maximum(total_steps, 1.0)
-            current_step = current_episodes * self._episode_length
-            progress = jp.clip(current_step / total_steps, 0.0, 1.0)
+            current_step = reset_count * self._episode_length # Not accurate, just an estimate if the episode runs to the end
+            progress = jp.clip(current_step / self._total_steps, 0.0, 1.0)
             max_wall_height = range_min + (range_max - range_min) * progress
             rng, height_key = jax.random.split(rng)
             wall_heights = jax.random.uniform(
@@ -314,12 +303,7 @@ class Joystick(go1_base.Go1Env):
         return data.replace(mocap_pos=new_mocap_pos)
     
 
-    def _next_episode_count(self) -> jax.Array:
-        """Return the incremented episode counter using jax.experimental.io_callback.
-
-        Allows a host-side side-effect (incrementing a Python counter) and returns
-        the updated value back into the JAX computation as a scalar int32.
-        """
+    def _increment_reset_counter(self) -> jax.Array:
         def _inc_host(_):
             # Increment host-side counter and return it as a NumPy scalar/array
             self._reset_count += 1
@@ -352,11 +336,11 @@ class Joystick(go1_base.Go1Env):
 
         # Sample wall heights for this episode using a runtime (JIT-visible) counter
         rng, wall_rng = jax.random.split(rng)
-        episode_count = self._next_episode_count()
+        reset_count = self._increment_reset_counter()
 
-        jax.debug.print("DEBUG reset: episode_count= {}, curriculum_learning= {}", episode_count, self._curriculum_learning)
+        jax.debug.print("DEBUG reset: _reset_count= {}, curriculum_learning= {}", reset_count, self._curriculum_learning)
 
-        wall_heights, _ = self.sample_wall_heights(wall_rng, episode_count=episode_count)
+        wall_heights, _ = self.sample_wall_heights(wall_rng, reset_count=reset_count)
 
         # d(xyzrpy)=U(-0.5, 0.5)
         rng, key = jax.random.split(rng)
