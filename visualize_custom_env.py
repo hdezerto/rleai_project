@@ -33,8 +33,7 @@ def main():
     # We will load the "debug" version here, which adds an additional wall *under* the robot
     # We add this to understand that changing walls correctly affects collision + raycasting.
     xml_path = 'custom_env_debug_wall.xml'
-    env = Joystick(xml_path=xml_path, config=default_config(), total_steps=num_resets*steps_per_reset, steps_per_reset=steps_per_reset)
-
+    env = Joystick(xml_path=xml_path, config=default_config(), curriculum_learning=False, total_steps=num_resets*steps_per_reset, steps_per_reset=steps_per_reset)
     # ----------------------------
     # NOTE: Added functionality to visualize ray casting
     # Get body ids for the mocap bodies
