@@ -27,22 +27,10 @@ def render_video_during_training(current_policy, step_num, jit_step,jit_reset, e
         state.info["command"] = command
         
         rollout_length = min(160, env_cfg.episode_length)
-
-        # --- GRU support ---
-        is_gru = hasattr(current_policy, "init_carry")
-        if is_gru:
-            carry = current_policy.init_carry(batch_size=1, key=rng)
-        # -------------------
         
         for _ in range(rollout_length):
             act_rng, rng = jax.random.split(rng)
-            # --- GRU support ---
-            if is_gru:
-                ctrl, carry, _ = current_policy(state.obs, carry, act_rng)
-            # -------------------
-            else:
-                ctrl, _ = jit_inference_fn(state.obs, act_rng)
-            
+            ctrl, _ = jit_inference_fn(state.obs, act_rng)
             state = jit_step(state, ctrl)
             state.info["command"] = command
             rollout.append(state)
@@ -276,12 +264,6 @@ def evaluate_policy(
             rng = sample_pert(rng)
         state.info["command"] = command # Set the velocity commands
         
-        # --- GRU support ---
-        is_gru = hasattr(jit_inference_fn, "init_carry")
-        if is_gru:
-            carry = jit_inference_fn.init_carry(batch_size=1, key=rng)
-        # -------------------
-        
         # Additional metrics to save
         total_reward = []
         linvel_deviation = []
@@ -294,12 +276,7 @@ def evaluate_policy(
                 rng = sample_pert(rng)
             act_rng, rng = jax.random.split(rng)
             
-            # --- GRU support ---
-            if is_gru:
-                ctrl, carry, _ = jit_inference_fn(state.obs, carry, act_rng)
-            # -------------------
-            else:
-                ctrl, _ = jit_inference_fn(state.obs, act_rng)
+            ctrl, _ = jit_inference_fn(state.obs, act_rng)
 
             state = jit_step(state, ctrl)   # Advance simulation
             state.info["command"] = command # Set the velocity commands

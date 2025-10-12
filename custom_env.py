@@ -446,8 +446,6 @@ class Joystick(go1_base.Go1Env):
 
     def step(self, state: mjx_env.State, action: jax.Array) -> mjx_env.State:
 
-        #jax.debug.print("DEBUG step: _reset_count= {}, curriculum_learning= {}", self._reset_count, self._curriculum_learning)
-
         # Apply perturbation if enabled
         if self._config.pert_config.enable:
             state = self._maybe_apply_perturbation(state)
@@ -481,8 +479,7 @@ class Joystick(go1_base.Go1Env):
         first_contact = (state.info["feet_air_time"] > 0.0) * contact_filt # True for feet that have just made contact after being in the air
         state.info["feet_air_time"] += self.dt # Increment air time for all feet (later reset for feet that are in contact)
         
-        # -----------------------------
-        # NOTE: Implementation of knee rewards below:
+        # -------- NEW Implementation of knee rewards --------
         knee_wall_collisions = jax.vmap(
             lambda knee_geom_id: jax.vmap(
                 lambda wall_geom_id: collision.geoms_colliding(data, knee_geom_id, wall_geom_id)
@@ -490,7 +487,7 @@ class Joystick(go1_base.Go1Env):
         )(self._knee_geom_id) # 2D boolean array: shape (num_knees, num_walls), True if a knee is in contact with a wall
         
         knee_contact = knee_wall_collisions.any(axis=1) # jnp.Array of shape (num_knees,)
-        # -----------------------------
+        # ----------------------------------------------------
 
         p_f = data.site_xpos[self._feet_site_id]
         p_fz = p_f[..., -1]  # Absolute foot height
@@ -824,14 +821,14 @@ class Joystick(go1_base.Go1Env):
             "knee_collisions": self._cost_knee_collisions(data, knee_contact)   # Add knee collision cost
         }
 
-    # --------------
-    # NOTE: Implementation of knee collision cost
+    # --------- NEW Implementation of knee collision cost ---------
+    # 
     def _cost_knee_collisions(self, data: mjx.Data, knee_contact: jax.Array) -> jax.Array:
         """Penalize knees colliding with walls"""
         knees_in_contact = jp.sum(knee_contact.astype(jp.float32))   # Counts amount of "True" values
         cost = knees_in_contact/len(knee_contact)
         return cost
-    # --------------
+    # --------------------------------------------------------------
 
     def _cost_torso_height(self, data: mjx.Data) -> jax.Array:
         """Penalize deviation from target torso height above terrain."""
