@@ -679,6 +679,7 @@ class Joystick(go1_base.Go1Env):
             "student_state": state,  # CHECK For potential future use
         }
 
+
     # --------------- NEW for exteroceptive ---------------
     def _get_exteroceptive(self, data: mjx.Data) -> Dict:
         """Get terrain height in front of and to the sides of the robot with multiple rays for robustness."""
@@ -736,7 +737,7 @@ class Joystick(go1_base.Go1Env):
 
     def _get_grid_data(self, offsets, yaw, x_shift, y_shift, x_scale_factor, y_scale_factor, data):
 
-        torso_pos = data.xpos[self._torso_body_id]
+        torso_pos = data.xpos[self._torso_body_id] 
 
         # Get 2D yaw rotation (apply to the XY plane)
         c = jp.cos(yaw)
@@ -770,8 +771,7 @@ class Joystick(go1_base.Go1Env):
             True, bodyexclude=self._robot_body_ids
         )
 
-        mean_distance = distances
-        terrain_height = mean_distance - z_shift
+        terrain_height = distances - z_shift
 
         return {
             "terrain_height": terrain_height,
