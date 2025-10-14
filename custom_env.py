@@ -706,9 +706,9 @@ class Joystick(go1_base.Go1Env):
             [-1.0, -1.0]
         ])
 
-        front_dict = self._get_grid_mean(offsets, yaw, x_shift=0.5, y_shift=0, x_scale_factor=0.07, y_scale_factor=0.3, data=data)
-        left_dict = self._get_grid_mean(offsets, yaw, x_shift=-0.2, y_shift=0.3, x_scale_factor=0.15, y_scale_factor=0.07, data=data)
-        right_dict = self._get_grid_mean(offsets, yaw, x_shift=-0.2, y_shift=-0.3, x_scale_factor=0.15, y_scale_factor=0.07, data=data)
+        front_dict = self._get_grid_data(offsets, yaw, x_shift=0.5, y_shift=0, x_scale_factor=0.07, y_scale_factor=0.3, data=data)
+        left_dict = self._get_grid_data(offsets, yaw, x_shift=-0.2, y_shift=0.3, x_scale_factor=0.15, y_scale_factor=0.07, data=data)
+        right_dict = self._get_grid_data(offsets, yaw, x_shift=-0.2, y_shift=-0.3, x_scale_factor=0.15, y_scale_factor=0.07, data=data)
 
         dicts = [front_dict, left_dict, right_dict]
 
@@ -720,21 +720,21 @@ class Joystick(go1_base.Go1Env):
 
         grids_data["directions"] = dicts[0]["directions"]
 
-        mean_height_array = jp.hstack([
+        raw_height_array = jp.hstack([
             front_dict["terrain_height"],
             left_dict["terrain_height"],
             right_dict["terrain_height"],
         ])
 
         return {
-            "terrain_height": mean_height_array,
+            "terrain_height": raw_height_array,
             "distances": grids_data["distances"],
             "directions": grids_data["directions"],
             "origins": grids_data["origins"],
         }
 
 
-    def _get_grid_mean(self, offsets, yaw, x_shift, y_shift, x_scale_factor, y_scale_factor, data):
+    def _get_grid_data(self, offsets, yaw, x_shift, y_shift, x_scale_factor, y_scale_factor, data):
 
         torso_pos = data.xpos[self._torso_body_id]
 
