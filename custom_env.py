@@ -682,49 +682,49 @@ class Joystick(go1_base.Go1Env):
     # --------------- NEW for exteroceptive ---------------
     def _get_exteroceptive(self, data: mjx.Data) -> Dict:
         """Get terrain height in front of and to the sides of the robot with multiple rays for robustness."""
+        feet_data = {}
 
-        # Extracts the torso's queaternion data
-        quaternion_data = data.xquat[self._torso_body_id]
-        w = quaternion_data[0] # rotation
-        x = quaternion_data[1] # x coord
-        y = quaternion_data[2] # y coord
-        z = quaternion_data[3] # z coord
+        for i, geom_id in enumerate(self._feet_geom_id):
+            foot_name = f"foot_{i}"
+            foot_body_id = self._mj_model.geom_bodyid[geom_id]
 
-        # Convert to heading angle in the XY plane (rotation around z-axis) from its quaternion orientation
-        yaw = jp.atan2(2.0 * (w * z + x * y), 1.0 - 2.0 * (y * y + z * z))
+            # Extract quaternion and compute yaw
+            quaternion_data = data.xquat[foot_body_id]
+            w = quaternion_data[0] # rotation
+            x = quaternion_data[1] # x coord
+            y = quaternion_data[2] # y coord
+            z = quaternion_data[3] # z coord
 
-        # Define grid of virtual sensors
-        offsets = jp.array([
-            [1.0, 1.0],
-            [1.0, 0.0],
-            [1.0, -1.0],
-            [0.0, 1.0],
-            [0.0, 0.0],
-            [0.0, -1.0],
-            [-1.0, 1.0],
-            [-1.0, 0.0],
-            [-1.0, -1.0]
-        ])
+            # Convert to heading angle in the XY plane (rotation around z-axis) from its quaternion orientation
+            yaw = jp.atan2(2.0 * (w * z + x * y), 1.0 - 2.0 * (y * y + z * z))
 
-        front_dict = self._get_grid_mean(offsets, yaw, x_shift=0.5, y_shift=0, x_scale_factor=0.07, y_scale_factor=0.3, data=data)
-        left_dict = self._get_grid_mean(offsets, yaw, x_shift=-0.2, y_shift=0.3, x_scale_factor=0.15, y_scale_factor=0.07, data=data)
-        right_dict = self._get_grid_mean(offsets, yaw, x_shift=-0.2, y_shift=-0.3, x_scale_factor=0.15, y_scale_factor=0.07, data=data)
+            # Define grid of virtual sensors
+            offsets = jp.array([
+                [1.0, 1.0],
+                [1.0, 0.0],
+                [1.0, -1.0],
+                [0.0, 1.0],
+                [0.0, 0.0],
+                [0.0, -1.0],
+                [-1.0, 1.0],
+                [-1.0, 0.0],
+                [-1.0, -1.0]
+            ])
 
-        dicts = [front_dict, left_dict, right_dict]
+            # Compute grid data centered on this foot
+            foot_dict = self._get_grid_mean(offsets=offsets, yaw=yaw, x_shift=0.2, y_shift=0, x_scale_factor=0.12, y_scale_factor=0.12, foot_id=foot_body_id, data=data)
+
+            feet_data[foot_name] = foot_dict
+
+        # --- Combine all feet into same output format ---
+        dicts = list(feet_data.values())
 
         grids_data = {}
-
         grids_data["distances"] = jp.concatenate([d["distances"] for d in dicts], axis=0)
-
         grids_data["origins"] = jp.vstack([d["origins"] for d in dicts])
-
         grids_data["directions"] = dicts[0]["directions"]
 
-        mean_height_array = jp.hstack([
-            front_dict["terrain_height"],
-            left_dict["terrain_height"],
-            right_dict["terrain_height"],
-        ])
+        mean_height_array = jp.hstack([d["terrain_height"] for d in dicts])
 
         return {
             "terrain_height": mean_height_array,
@@ -733,10 +733,9 @@ class Joystick(go1_base.Go1Env):
             "origins": grids_data["origins"],
         }
 
+    def _get_grid_mean(self, offsets, yaw, x_shift, y_shift, x_scale_factor, y_scale_factor, foot_id, data):
 
-    def _get_grid_mean(self, offsets, yaw, x_shift, y_shift, x_scale_factor, y_scale_factor, data):
-
-        torso_pos = data.xpos[self._torso_body_id]
+        foot_pos = data.xpos[foot_id]
 
         # Get 2D yaw rotation (apply to the XY plane)
         c = jp.cos(yaw)
@@ -756,12 +755,12 @@ class Joystick(go1_base.Go1Env):
         # Calculate rotated coordinates in world frame
         world_x = c * local_x - s * local_y
         world_y = s * local_x + c * local_y
-        world_z = torso_pos[2] + local_z
+        world_z = foot_pos[2] + local_z
 
         # Combine into world ray starts: torso_pos + rotated local XY, and z = torso_z + z_shift
         ray_starts = jp.stack([
-            torso_pos[0] + world_x,
-            torso_pos[1] + world_y,
+            foot_pos[0] + world_x,
+            foot_pos[1] + world_y,
             jp.ones_like(world_x) * world_z
         ], axis=1)
 
