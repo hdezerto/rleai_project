@@ -102,34 +102,34 @@
   <main>
     <h1>Perception-Based RL for Quadruped Locomotion</h1>
     <p>
-      Selected media from the DD2600 presentation and evaluation artifacts. The clips show the ray-cast height scanner, proprioceptive versus exteroceptive policies, and the teacher-student extension.
+      Selected project demos showing the ray-cast height scanner, proprioceptive versus exteroceptive policies, and the teacher-student extension.
     </p>
 
-    <h2>Slide 3: Ray-Cast Height Scanner</h2>
+    <h2>Ray-Cast Height Scanner</h2>
     <p>
       The exteroceptive observations were produced by ray-casting height grids around the robot and adding the measured terrain heights to the policy state.
     </p>
     <figure class="single">
       <img src="media/raycast-height-scanner.gif" alt="Animated ray-cast height scanner visualization">
-      <figcaption>Height-grid sensing visualization from the presentation</figcaption>
+      <figcaption>Height-grid sensing visualization</figcaption>
     </figure>
 
-    <h2>Slide 6: Proprioceptive and Exteroceptive Policies</h2>
+    <h2>Proprioceptive and Exteroceptive Policies</h2>
     <p>
-      Slide 6 compared the proprioceptive baseline against the exteroceptive policy on one case where the added sensing helped and one case where it did not.
+      The proprioceptive baseline and exteroceptive policy are compared on one case where the added sensing helped and one case where it did not.
     </p>
 
     <h3>Case 2: Improvement</h3>
     <div class="comparison">
       <figure>
-        <video controls preload="metadata" src="media/slide-6-proprioceptive-case-2.mp4"></video>
+        <video controls preload="metadata" src="media/proprioceptive-case-2-demo.mp4"></video>
         <figcaption>
           Proprioceptive baseline
           <span class="metric">Linear velocity error: 1.888 +/- 0.072</span>
         </figcaption>
       </figure>
       <figure>
-        <video controls preload="metadata" src="media/slide-6-exteroceptive-case-2.mp4"></video>
+        <video controls preload="metadata" src="media/exteroceptive-case-2-demo.mp4"></video>
         <figcaption>
           Exteroceptive policy
           <span class="metric">Linear velocity error: 1.548 +/- 0.153</span>
@@ -155,9 +155,9 @@
       </figure>
     </div>
 
-    <h2>Slide 10: Teacher-Student Extension</h2>
+    <h2>Teacher-Student Extension</h2>
     <p>
-      The student policy was trained with limited observations and an imitation loss from a privileged teacher. The presentation compared the student policy with the exteroceptive baseline.
+      The student policy was trained with limited observations and an imitation loss from a privileged teacher. The comparisons below show the student policy against the exteroceptive baseline.
     </p>
 
     <h3>Case 2: No Improvement</h3>
