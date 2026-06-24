@@ -1,0 +1,200 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Perception-Based RL Demo</title>
+  <style>
+    :root {
+      color-scheme: light;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: #17202a;
+      background: #f7f8fb;
+    }
+
+    body {
+      margin: 0;
+    }
+
+    main {
+      max-width: 1180px;
+      margin: 0 auto;
+      padding: 40px 20px 56px;
+    }
+
+    h1 {
+      margin: 0 0 10px;
+      font-size: clamp(2rem, 5vw, 3.6rem);
+      line-height: 1;
+      letter-spacing: 0;
+    }
+
+    h2 {
+      margin: 36px 0 10px;
+      font-size: 1.45rem;
+    }
+
+    h3 {
+      margin: 22px 0 10px;
+      font-size: 1.05rem;
+    }
+
+    p {
+      max-width: 850px;
+      line-height: 1.6;
+      color: #394655;
+    }
+
+    .single,
+    .comparison {
+      margin-top: 18px;
+    }
+
+    .comparison {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 18px;
+    }
+
+    figure {
+      margin: 0;
+      background: #ffffff;
+      border: 1px solid #d9e0ea;
+      border-radius: 8px;
+      overflow: hidden;
+      box-shadow: 0 12px 28px rgba(28, 41, 58, 0.08);
+    }
+
+    video,
+    img {
+      display: block;
+      width: 100%;
+      aspect-ratio: 16 / 9;
+      object-fit: contain;
+      background: #111827;
+    }
+
+    figcaption {
+      padding: 12px 14px 14px;
+      font-weight: 650;
+    }
+
+    .metric {
+      display: block;
+      margin-top: 4px;
+      font-size: 0.92rem;
+      font-weight: 400;
+      color: #536171;
+    }
+
+    @media (max-width: 760px) {
+      main {
+        padding-top: 28px;
+      }
+
+      .comparison {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Perception-Based RL for Quadruped Locomotion</h1>
+    <p>
+      Selected media from the DD2600 presentation and evaluation artifacts. The clips show the ray-cast height scanner, proprioceptive versus exteroceptive policies, and the teacher-student extension.
+    </p>
+
+    <h2>Slide 3: Ray-Cast Height Scanner</h2>
+    <p>
+      The exteroceptive observations were produced by ray-casting height grids around the robot and adding the measured terrain heights to the policy state.
+    </p>
+    <figure class="single">
+      <img src="media/raycast-height-scanner.gif" alt="Animated ray-cast height scanner visualization">
+      <figcaption>Height-grid sensing visualization from the presentation</figcaption>
+    </figure>
+
+    <h2>Slide 6: Proprioceptive and Exteroceptive Policies</h2>
+    <p>
+      Slide 6 compared the proprioceptive baseline against the exteroceptive policy on one case where the added sensing helped and one case where it did not.
+    </p>
+
+    <h3>Case 2: Improvement</h3>
+    <div class="comparison">
+      <figure>
+        <video controls preload="metadata" src="media/slide-6-proprioceptive-case-2.mp4"></video>
+        <figcaption>
+          Proprioceptive baseline
+          <span class="metric">Linear velocity error: 1.888 +/- 0.072</span>
+        </figcaption>
+      </figure>
+      <figure>
+        <video controls preload="metadata" src="media/slide-6-exteroceptive-case-2.mp4"></video>
+        <figcaption>
+          Exteroceptive policy
+          <span class="metric">Linear velocity error: 1.548 +/- 0.153</span>
+        </figcaption>
+      </figure>
+    </div>
+
+    <h3>Case 5: No Improvement</h3>
+    <div class="comparison">
+      <figure>
+        <video controls preload="metadata" src="https://raw.githubusercontent.com/hdezerto/rleai_project/main/eval_videos/proprioceptive/proprioceptive_velocity_case_5.mp4"></video>
+        <figcaption>
+          Proprioceptive baseline
+          <span class="metric">Linear velocity error: 0.714 +/- 0.394</span>
+        </figcaption>
+      </figure>
+      <figure>
+        <video controls preload="metadata" src="https://raw.githubusercontent.com/hdezerto/rleai_project/main/eval_videos/exteroceptive/exteroceptive_velocity_case_5.mp4"></video>
+        <figcaption>
+          Exteroceptive policy
+          <span class="metric">Linear velocity error: 0.823 +/- 0.387</span>
+        </figcaption>
+      </figure>
+    </div>
+
+    <h2>Slide 10: Teacher-Student Extension</h2>
+    <p>
+      The student policy was trained with limited observations and an imitation loss from a privileged teacher. The presentation compared the student policy with the exteroceptive baseline.
+    </p>
+
+    <h3>Case 2: No Improvement</h3>
+    <div class="comparison">
+      <figure>
+        <video controls preload="metadata" src="https://raw.githubusercontent.com/hdezerto/rleai_project/main/eval_videos/exteroceptive/exteroceptive_velocity_case_2.mp4"></video>
+        <figcaption>
+          Exteroceptive baseline
+          <span class="metric">Linear velocity error: 0.772 +/- 0.116</span>
+        </figcaption>
+      </figure>
+      <figure>
+        <video controls preload="metadata" src="https://raw.githubusercontent.com/hdezerto/rleai_project/main/eval_videos/student/student_velocity_case_2.mp4"></video>
+        <figcaption>
+          Student policy
+          <span class="metric">Linear velocity error: 0.862 +/- 0.077</span>
+        </figcaption>
+      </figure>
+    </div>
+
+    <h3>Case 4: Improvement</h3>
+    <div class="comparison">
+      <figure>
+        <video controls preload="metadata" src="https://raw.githubusercontent.com/hdezerto/rleai_project/main/eval_videos/exteroceptive/exteroceptive_velocity_case_4.mp4"></video>
+        <figcaption>
+          Exteroceptive baseline
+          <span class="metric">Linear velocity error: 0.851 +/- 0.075</span>
+        </figcaption>
+      </figure>
+      <figure>
+        <video controls preload="metadata" src="https://raw.githubusercontent.com/hdezerto/rleai_project/main/eval_videos/student/student_velocity_case_4.mp4"></video>
+        <figcaption>
+          Student policy
+          <span class="metric">Linear velocity error: 0.775 +/- 0.129</span>
+        </figcaption>
+      </figure>
+    </div>
+  </main>
+</body>
+</html>

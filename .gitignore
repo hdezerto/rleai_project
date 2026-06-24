@@ -29,6 +29,8 @@ checkpoints/
 runs/
 wandb/
 *.gif
+!docs/media/
+!docs/media/*.gif
 *.log
 
 # Ad-hoc generated evaluation videos. Curated demos are kept in eval_videos/<policy>/.

@@ -17,6 +17,12 @@ The project compares three policy setups for simulated quadruped locomotion:
 
 The custom environment adds wall/terrain randomization, exteroceptive scanning, curriculum-learning support, and evaluation utilities for velocity-tracking behavior.
 
+## Selected Findings
+
+Ray-cast height observations changed the robot's behavior on uneven terrain. In some evaluation cases, the exteroceptive policy reduced linear velocity-tracking error compared with the proprioceptive baseline, while in other cases it did not improve performance. The teacher-student extension trained a privileged teacher policy first, then trained a student policy with limited observations using an additional imitation loss.
+
+Selected evaluation videos are available on the [demo page](https://hdezerto.github.io/rleai_project/).
+
 ## Repository Contents
 
 | Path | Purpose |
