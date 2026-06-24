@@ -1,4 +1,53 @@
-**.gif
-**venv**
+# Python bytecode and caches
 __pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Virtual environments
+.venv/
+venv/
+env/
+venv_rl/
+**/venv*/
+**/.venv/
+
+# Jupyter
+.ipynb_checkpoints/
+*/.ipynb_checkpoints/
 HUGO_lab1_C.ipynb
+
+# Generated experiment outputs
+metrics/
+gifs/
+videos/
+checkpoints/
+runs/
+wandb/
+*.gif
+*.log
+
+# Ad-hoc generated evaluation videos. Curated demos are kept in eval_videos/<policy>/.
+eval_videos/*.mp4
+eval_videos/download*.mp4
+
+# Serialized experiment outputs. Curated policy snapshots in policies/ are intentionally tracked.
+*.dill
+!policies/
+!policies/*.dill
+*.pkl
+*.pickle
+
+# Editor and OS files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Temporary files
+tmp/
+temp/
